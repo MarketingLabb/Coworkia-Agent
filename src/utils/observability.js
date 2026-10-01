@@ -371,6 +371,10 @@ class HealthChecker {
   }
 }
 
+function getHealthStatusCode(status) {
+  return status === 'healthy' || status === 'warning' ? 200 : 503;
+}
+
 // Instancias singleton
 const metricsCollector = new MetricsCollector();
 const logger = new StructuredLogger('coworkia-agent');
@@ -466,6 +470,7 @@ export {
   initializeObservability,
   requestTrackingMiddleware,
   withQueryTracking,
+  getHealthStatusCode,
   MetricsCollector,
   StructuredLogger,
   HealthChecker

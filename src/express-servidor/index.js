@@ -47,6 +47,7 @@ import {
   metricsCollector,
   logger,
   healthChecker,
+  getHealthStatusCode,
   initializeObservability,
   requestTrackingMiddleware
 } from '../utils/observability.js';
@@ -209,7 +210,7 @@ app.get('/metrics', (req, res) => {
 
 app.get('/health', async (req, res) => {
   const health = await healthChecker.runAllChecks();
-  const statusCode = health.status === 'healthy' ? 200 : 503;
+  const statusCode = getHealthStatusCode(health.status);
   res.status(statusCode).json(health);
 });
 
