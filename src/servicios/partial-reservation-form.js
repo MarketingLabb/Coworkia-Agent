@@ -89,14 +89,38 @@ export function isAdminReservationUser(userId) {
   return Boolean(admin && normalizeComparablePhone(userId) === admin);
 }
 
-export function extractAdminBeneficiaryData(message, currentForm = {}) {
-  const text = String(message || '').trim();
-  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const updates = {};
+function normalizeIntentText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
-  if (/\b(para mi|para diego|es para mi|yo mismo)\b/.test(normalized)) {
+function extractNamedThirdParty(text) {
+  const nameWords = '[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ \'-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}?';
+  const capitalizedNameWords = '[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+(?:[ \'-][A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+){1,4}?';
+  const suffix = '(?=\\s*(?:[,;.]|\\b(?:hoy|mañana|manana|el|a\\s+las?|hot\\s*desk|sala|reuni[oó]n|tel[eé]fono|celular|correo|email)\\b|$))';
+  const describedPerson = new RegExp(`(?:para|es\\s+para)\\s+(?:mi\\s+)?(?:amig[oa]|colega|cliente)\\s+(${nameWords})${suffix}`, 'i');
+  const directPerson = new RegExp(`(?:[Rr]eserva\\s+)?[Pp]ara\\s+(${capitalizedNameWords})${suffix}`);
+  const match = text.match(describedPerson) || text.match(directPerson);
+  return match?.[1]?.trim() || null;
+}
+
+export function extractAdminBeneficiaryData(message, currentForm = {}, expectedField = null) {
+  const text = String(message || '').trim();
+  const normalized = normalizeIntentText(text);
+  const updates = {};
+  const namedThirdParty = extractNamedThirdParty(text);
+  const describesThirdParty = /\b(?:para|es para)\s+(?:mi\s+)?(?:amig[oa]|colega|cliente)\b|\b(?:otra persona|un tercero|una tercera persona|un cliente)\b/.test(normalized);
+  const explicitSelf = [
+    /\bpara mi\b(?!\s+(?:amig[oa]|colega|cliente)\b)/,
+    /\bes para mi\b(?!\s+(?:amig[oa]|colega|cliente)\b)/,
+    /\byo mism[oa]\b/,
+    /\bquiero (?:hacer )?una reserva (?:para )?yo\b/,
+    /\byo (?:voy a )?usar(?:la|lo)?\b/,
+    /\bla (?:voy a usar|usare) yo\b/,
+  ].some(pattern => pattern.test(normalized));
+
+  if (explicitSelf || /\bpara diego\b/.test(normalized)) {
     updates.reservationFor = 'self';
-  } else if (/\b(otra persona|un tercero|una tercera persona|un cliente|otra persona)\b/i.test(text)) {
+  } else if (describesThirdParty || namedThirdParty) {
     updates.reservationFor = 'other';
   }
 
@@ -111,8 +135,11 @@ export function extractAdminBeneficiaryData(message, currentForm = {}) {
     }
 
     const namedMatch = text.match(/(?:nombre(?: completo)?(?: es)?|se llama)\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4})(?=\s*[,;]|\s+(?:tel[eé]fono|celular|correo|email)\b|$)/i);
-    const simpleName = !currentForm.beneficiaryName && !emailMatch && !phoneMatch && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}$/.test(text);
-    if (namedMatch || simpleName) updates.beneficiaryName = (namedMatch?.[1] || text).trim();
+    const isNameOnly = !emailMatch && !phoneMatch && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}$/.test(text);
+    const simpleName = expectedField === 'beneficiaryName' || (!currentForm.beneficiaryName && isNameOnly);
+    if (namedThirdParty || namedMatch || (simpleName && isNameOnly)) {
+      updates.beneficiaryName = (namedThirdParty || namedMatch?.[1] || text).trim();
+    }
   }
 
   return updates;
@@ -1320,7 +1347,33 @@ export async function processMessageWithForm(userId, message, userProfile = null
   let adminBeneficiaryUpdates = {};
 
   if (form.isAdminBooking) {
-    const beneficiaryUpdates = extractAdminBeneficiaryData(message, form);
+    const expectedField = form.getMissingFields()[0] || null;
+    const previousReservationFor = form.reservationFor;
+    const previousBeneficiaryName = form.beneficiaryName;
+    const previousBeneficiaryEmail = form.beneficiaryEmail;
+    const beneficiaryUpdates = extractAdminBeneficiaryData(message, form, expectedField);
+
+    if (beneficiaryUpdates.reservationFor === 'self' && previousReservationFor !== 'self') {
+      form.beneficiaryName = null;
+      form.beneficiaryPhone = null;
+      form.beneficiaryEmail = null;
+      if (form.email === previousBeneficiaryEmail) form.email = null;
+    } else if (beneficiaryUpdates.reservationFor === 'other' && previousReservationFor === 'self') {
+      form.beneficiaryName = null;
+      form.beneficiaryPhone = null;
+      form.beneficiaryEmail = null;
+      if (form.email === previousBeneficiaryEmail || form.email === userProfile?.email) form.email = null;
+    } else if (
+      beneficiaryUpdates.reservationFor === 'other'
+      && beneficiaryUpdates.beneficiaryName
+      && previousBeneficiaryName
+      && beneficiaryUpdates.beneficiaryName !== previousBeneficiaryName
+    ) {
+      form.beneficiaryPhone = null;
+      form.beneficiaryEmail = null;
+      if (form.email === previousBeneficiaryEmail) form.email = null;
+    }
+
     adminBeneficiaryUpdates = beneficiaryUpdates;
     form.updateFields(beneficiaryUpdates);
 
