@@ -63,7 +63,8 @@ describe('Aurora boss command removal', () => {
     const updates = extractDataFromMessage(message, form);
 
     expect(isReservationIntent(message)).toBe(true);
-    expect(wassengerSource).toContain('processMessageWithForm(userId, processedText, profile, currentAgentForm)');
+    expect(wassengerSource).toContain("const _formInput = _hasAF ? (text || '') : processedText");
+    expect(wassengerSource).toContain('processMessageWithForm(userId, _formInput, profile, currentAgentForm)');
     expect(wassengerSource).toContain("handleFormResult(formResult, userId, 'AURORA', profile)");
     expect(updates).toMatchObject({
       spaceType: 'hotDesk',

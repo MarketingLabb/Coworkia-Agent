@@ -54,7 +54,9 @@ import {
   saveInteraction,
   loadConversationHistory,
   saveConversationMessage,
-  invalidateCachedProfile
+  invalidateCachedProfile,
+  getPartialForm,
+  clearPartialForm
 } from '../../perfiles-interacciones/memoria-sqlite.js';
 
 import { loadProfileWithTimeout } from '../../utils/timeout-helpers.js';
@@ -624,6 +626,59 @@ function normalizeName(data) {
 
 function normalizeText(data) {
   return safeStr(data.body || data.message || '');
+}
+
+export function isAuroraFormCancellation(text) {
+  const command = safeStr(text)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[.!?]+$/g, '')
+    .trim();
+
+  return ['cancelar', 'cancelar reserva', 'salir', 'olvida la reserva'].includes(command);
+}
+
+async function handleAuroraFormCancellation(userId, text) {
+  if (!isAuroraFormCancellation(text)) return false;
+
+  const [activeForm, legacyForm, currentProfile] = await Promise.all([
+    getAgentForm(userId, 'AURORA').catch(() => null),
+    getPartialForm(userId).catch(() => null),
+    loadProfile(userId).catch(() => null),
+  ]);
+  const pending = currentProfile?.activeAgent === 'AURORA'
+    ? await getPendingConfirmation(userId).catch(() => null)
+    : null;
+
+  if (!activeForm && !legacyForm && !pending) return false;
+
+  const queued = pendingWebhooks.get(userId);
+  if (queued?.timer) clearTimeout(queued.timer);
+  pendingWebhooks.delete(userId);
+
+  await Promise.all([
+    clearAgentForm(userId, 'AURORA'),
+    clearPartialForm(userId),
+    clearPendingConfirmation(userId),
+  ]);
+
+  if (currentProfile) {
+    await saveProfile(userId, {
+      ...currentProfile,
+      transactionStartedAt: null,
+      transactionAgent: null,
+      followUpSentAt: null,
+    });
+  }
+
+  const cancellationMessage = 'Listo, cancelé el borrador de la reserva. Cuando quieras, podemos empezar una nueva desde cero.';
+  await enviarWhatsApp(userId, cancellationMessage);
+  await Promise.allSettled([
+    saveConversationMessage(userId, { role: 'user', content: safeStr(text), agent: 'AURORA' }),
+    saveConversationMessage(userId, { role: 'assistant', content: cancellationMessage, agent: 'AURORA' }),
+  ]);
+  return true;
 }
 
 // Tipos de webhook que Wassenger envía sin texto descifrado (Click-to-WhatsApp, IG ads)
@@ -1536,6 +1591,10 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
       return;
     }
 
+    // Salida universal del formulario Aurora: evaluar el texto crudo antes de
+    // debounce, reply-context, comandos BOSS o cualquier campo pendiente.
+    if (await handleAuroraFormCancellation(userId, webhookData.text || '')) return;
+
     // 🎮 DIEGO COMMANDS: Interceptar antes del debounce — respuesta inmediata
     // Comandos siempre activos: STATUS, PARA, SIGUIENTE, CANCELA
     // Solo responde si el mensaje viene de DIEGO_PERSONAL_PHONE
@@ -2380,7 +2439,8 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
           hasActiveForm: _hasAF,
           isFormContinuation: _hasFCont
         });
-        formResult = await processMessageWithForm(userId, processedText, profile, currentAgentForm);
+        const _formInput = _hasAF ? (text || '') : processedText;
+        formResult = await processMessageWithForm(userId, _formInput, profile, currentAgentForm);
         formResult.userMessage = text;
 
         // Guardar form si hay actualizaciones
@@ -2677,7 +2737,8 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
         isFormContinuation 
       });
       
-      formResult = await processMessageWithForm(userId, processedText, profile, currentAgentForm);
+      const formInput = hasActiveForm ? (text || '') : processedText;
+      formResult = await processMessageWithForm(userId, formInput, profile, currentAgentForm);
       formResult.userMessage = text;
       
       // 💾 Guardar form en sistema unificado si hay cambios
