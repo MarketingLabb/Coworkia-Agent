@@ -85,6 +85,7 @@ import { scoreConversation } from '../../servicios/conversation-scorer.js';
 import { normalizePhoneEC } from '../../utils/validators.js';
 import { getServiceLabel } from '../../utils/service-labels.js';
 import { pauseBot, isBotPaused, resumeBot, resumeAll, getActiveTakeovers } from '../../servicios/human-takeover.js';
+import { getConsentDecision, handleConsentDecision } from '../../servicios/contact-consent-flow.js';
 
 const router = Router();
 
@@ -1604,47 +1605,30 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
     const current = await loadProfileWithTimeout(loadProfile, userId, 15000).catch(() => ({})) || {};
     let userLanguage = current.preferredLanguage || 'es';
 
-    // 🔐 LOPDP: Consentimiento de datos personales (Art. 27 LOPDP Ecuador)
-    // Diego siempre pasa directo. Para todos los demás: verificar consentimiento.
+    // 🔐 LOPDP: saludar primero; solicitar consentimiento una sola vez cuando
+    // el contacto expresa una necesidad, antes de procesar datos personales.
     const DIEGO_PHONE = process.env.DIEGO_PERSONAL_PHONE;
     const isDiego = DIEGO_PHONE && normalizePhone(userId) === normalizePhone(DIEGO_PHONE);
+    const consentDecision = getConsentDecision({
+      message: text,
+      consentAt: current.dataConsentAt,
+      consentRequestedAt: current.dataConsentRequestedAt,
+      isInternal: Boolean(isDiego || isAdminPhone(userId))
+    });
 
-    if (!isDiego && !current.dataConsentAt) {
-      const normalizedText = (text || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      // Si responde SI/SÍ → registrar consentimiento y continuar
-      if (normalizedText === 'SI' || normalizedText === 'SÍ' || normalizedText === 'ACEPTO') {
-        console.log(`[LOPDP] ✅ Consentimiento recibido de ${userId}`);
-        await databaseService.run(
-          `UPDATE users SET data_consent_at = NOW(), data_consent_source = 'whatsapp' WHERE phone_number = $1`,
-          [userId]
-        );
-        // 🐛 FIX: Invalidar caché para que próximo mensaje vea dataConsentAt
-        invalidateCachedProfile(userId);
-        await enviarWhatsApp(userId, '✅ ¡Gracias! Tu consentimiento quedó registrado. ¿En qué puedo ayudarte hoy?');
-        return;
-      }
-
-      // Si responde NO → informar derechos sin registrar datos
-      if (normalizedText === 'NO' || normalizedText === 'NO ACEPTO') {
-        console.log(`[LOPDP] ❌ Consentimiento rechazado por ${userId}`);
-        await enviarWhatsApp(userId, 'Entendemos. No procesaremos tus datos. Si cambias de opinión, escríbenos.\n\nPuedes ejercer tus derechos ARCO en:\nhttps://coworkia-agent-e97d15dac56f.herokuapp.com/privacidad-arco.html');
-        return;
-      }
-
-      // Primera vez o aún sin consentimiento → pedir consentimiento
-      // Crear usuario mínimo si no existe (para trackear el pedido)
-      if (!current.userId) {
-        await databaseService.run(
-          `INSERT INTO users (phone_number, whatsapp_display_name, last_message_at) VALUES ($1, $2, NOW()) ON CONFLICT (phone_number) DO UPDATE SET last_message_at = NOW()`,
-          [userId, name || null]
-        );
-      }
-
-      console.log(`[LOPDP] 📋 Solicitando consentimiento a ${userId}`);
-      await enviarWhatsApp(userId,
-        `¡Hola! 👋 Para atenderte, necesitamos procesar tus datos personales (nombre, teléfono) según nuestra política de privacidad.\n\n📄 https://coworkia-agent-e97d15dac56f.herokuapp.com/privacidad.html\n\nResponde *SI* para aceptar y continuar.`
-      );
+    const consentResult = await handleConsentDecision({
+      decision: consentDecision,
+      userId,
+      name,
+      run: databaseService.run.bind(databaseService),
+      send: enviarWhatsApp,
+      invalidate: invalidateCachedProfile,
+    });
+    if (consentResult.handled) {
+      if (consentResult.accepted) console.log(`[LOPDP] ✅ Consentimiento recibido de ${userId}`);
+      if (consentResult.declined) console.log(`[LOPDP] ❌ Consentimiento rechazado por ${userId}`);
+      if (consentResult.requested) console.log(`[LOPDP] 📋 Consentimiento entregado a ${userId}`);
+      if (!consentResult.delivered) console.warn(`[LOPDP] ⚠️ Mensaje de consentimiento no entregado a ${userId}; se reintentará en el siguiente mensaje`);
       return;
     }
 
@@ -3817,13 +3801,6 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
       'completed',
       userId
     ).catch(err => console.warn('[LEARNING] ⚠️ Score error:', err.message));
-
-    // � LOPDP — Aviso silencioso de privacidad (solo primer contacto histórico con Aurora)
-    // El aviso se añade UNA sola vez: cuando Aurora responde al usuario por primera vez.
-    // Todos los contactos entran por Aurora, así que esto cubre el 100% de los usuarios.
-    if (resultado.agenteKey === 'AURORA' && profile.firstVisit === true) {
-      finalReply += '\n\n_Coworkia trata tus datos con confidencialidad según la LOPDP. Más info: https://coworkia-agent-e97d15dac56f.herokuapp.com/privacidad_';
-    }
 
     // �📨 Dividir mensaje automáticamente si es largo/estructurado
     const messageProcessed = splitLongMessage(finalReply);

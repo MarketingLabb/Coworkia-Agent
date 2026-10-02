@@ -18,6 +18,8 @@ import { getPendingConfirmation, setPendingConfirmation, clearPendingConfirmatio
 import { detectarSaludoConInteresServicio } from '../deteccion-intenciones/detectar-intencion.js';
 import userRepository from '../database/userRepository.js';
 import reservationRepository from '../database/reservationRepository.js';
+import { HOURS } from '../utils/coworkia-facts.js';
+import { validateBusinessHours, suggestAlternativeSlots } from './reservation-validation.js';
 
 // 📲 Enlace genérico para referir amigos al sistema de Coworkia
 const REFERRAL_LINK = `https://wa.me/593994837117?text=${encodeURIComponent('¡Hola Coworkia! quiero probar el servicio')}`;
@@ -57,6 +59,65 @@ function isFreeTrialWindowEligible(spaceType, timeStr) {
   return mins >= start && mins <= end;
 }
 
+function phoneDigits(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function normalizeComparablePhone(phone) {
+  const digits = phoneDigits(phone);
+  if (/^09\d{8}$/.test(digits)) return `593${digits.slice(1)}`;
+  return digits;
+}
+
+function normalizeBeneficiaryPhone(phone) {
+  const digits = phoneDigits(phone);
+  if (/^09\d{8}$/.test(digits)) return `+593${digits.slice(1)}`;
+  if (/^5939\d{8}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
+export function isValidBeneficiaryName(name) {
+  return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)+$/.test(String(name || '').trim());
+}
+
+export function isValidBeneficiaryEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+export function isAdminReservationUser(userId) {
+  const admin = normalizeComparablePhone(process.env.ADMIN_PHONE);
+  return Boolean(admin && normalizeComparablePhone(userId) === admin);
+}
+
+export function extractAdminBeneficiaryData(message, currentForm = {}) {
+  const text = String(message || '').trim();
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const updates = {};
+
+  if (/\b(para mi|para diego|es para mi|yo mismo)\b/.test(normalized)) {
+    updates.reservationFor = 'self';
+  } else if (/\b(otra persona|un tercero|una tercera persona|un cliente|otra persona)\b/i.test(text)) {
+    updates.reservationFor = 'other';
+  }
+
+  if ((updates.reservationFor || currentForm.reservationFor) === 'other') {
+    const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) updates.beneficiaryEmail = emailMatch[1].toLowerCase();
+
+    const phoneMatch = text.match(/(?:\+?593[\s-]?9|09)[\d\s-]{8,12}/);
+    if (phoneMatch) {
+      const phone = normalizeBeneficiaryPhone(phoneMatch[0]);
+      if (phone) updates.beneficiaryPhone = phone;
+    }
+
+    const namedMatch = text.match(/(?:nombre(?: completo)?(?: es)?|se llama)\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4})(?=\s*[,;]|\s+(?:tel[eé]fono|celular|correo|email)\b|$)/i);
+    const simpleName = !currentForm.beneficiaryName && !emailMatch && !phoneMatch && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}$/.test(text);
+    if (namedMatch || simpleName) updates.beneficiaryName = (namedMatch?.[1] || text).trim();
+  }
+
+  return updates;
+}
+
 /**
  * 🎯 Clase que representa un formulario parcial de reserva
  */
@@ -67,6 +128,11 @@ export class PartialReservationForm {
     this.date = existingData.date || null;                // '2025-11-12'
     this.time = existingData.time || null;                // '10:00'
     this.email = existingData.email || null;              // 'yo@diegovillota.com'
+    this.isAdminBooking = existingData.isAdminBooking ?? isAdminReservationUser(userId);
+    this.reservationFor = existingData.reservationFor || null;
+    this.beneficiaryName = existingData.beneficiaryName || null;
+    this.beneficiaryPhone = existingData.beneficiaryPhone || null;
+    this.beneficiaryEmail = existingData.beneficiaryEmail || null;
     this.numPeople = existingData.numPeople || 1;         // default 1 (solo el usuario)
     this.durationHours = existingData.durationHours || 2; // default 2h (mínimo según política)
     this.paymentMethod = existingData.paymentMethod || null; // 'transferencia' | 'tarjeta' | 'efectivo'
@@ -153,6 +219,13 @@ export class PartialReservationForm {
    */
   getMissingFields() {
     const missing = [];
+
+    if (this.isAdminBooking) {
+      if (!this.reservationFor) return ['reservationFor'];
+      if (!isValidBeneficiaryName(this.beneficiaryName)) missing.push('beneficiaryName');
+      if (!normalizeBeneficiaryPhone(this.beneficiaryPhone)) missing.push('beneficiaryPhone');
+      if (!isValidBeneficiaryEmail(this.beneficiaryEmail)) missing.push('beneficiaryEmail');
+    }
     
     if (!this.spaceType) missing.push('spaceType');
     if (!this.date) missing.push('date');
@@ -354,6 +427,14 @@ export class PartialReservationForm {
     const userName = this.userName || '';
 
     switch(field) {
+      case 'reservationFor':
+        return '¿La reserva es para ti o para otra persona?';
+      case 'beneficiaryName':
+        return '¿Cuál es el nombre completo de la persona que usará la reserva?';
+      case 'beneficiaryPhone':
+        return '¿Cuál es el número de celular de la persona beneficiaria?';
+      case 'beneficiaryEmail':
+        return '¿Cuál es el correo electrónico de la persona beneficiaria?';
       case 'spaceType':
         return `¿Qué espacio necesitas${userName}? Tenemos:\n\n📍 Hot Desk (individual, $10/2h)\n🏢 Sala de Reuniones (3-4 personas, $29/2h)`;
       
@@ -361,7 +442,7 @@ export class PartialReservationForm {
         return `¿Para qué día${userName}? Puedes decir "hoy", "mañana" o una fecha específica 📅`;
       
       case 'time':
-        return `¿A qué hora te gustaría venir? (horario: 7am - 8pm)\nPuedes indicar también hasta cuándo: por ejemplo "9am hasta las 5pm" ⏰`;
+        return `¿A qué hora te gustaría venir? (horario: ${HOURS.display})\nPuedes indicar también hasta cuándo: por ejemplo "9am hasta las 5pm" ⏰`;
       
       case 'email':
         return `¿Cuál es tu correo electrónico? Lo necesito para enviarte la confirmación 📧`;
@@ -383,6 +464,13 @@ export class PartialReservationForm {
    */
   getSummary() {
     const parts = [];
+
+    if (this.isAdminBooking && this.reservationFor) {
+      const who = this.reservationFor === 'self' ? 'Diego (titular)' : (this.beneficiaryName || 'otra persona');
+      parts.push(`👤 Reserva para: ${who}`);
+      if (this.beneficiaryPhone) parts.push(`📱 Beneficiario: ${this.beneficiaryPhone}`);
+      if (this.beneficiaryEmail) parts.push(`📧 Email beneficiario: ${this.beneficiaryEmail}`);
+    }
     
     if (this.spaceType) {
       const spaceName = this.spaceType === 'hotDesk' ? 'Hot Desk' : 'Sala de Reuniones';
@@ -403,7 +491,7 @@ export class PartialReservationForm {
       parts.push(`👥 Personas: ${this.numPeople}${deskInfo}`);
     }
     
-    if (this.email) {
+    if (this.email && !this.isAdminBooking) {
       parts.push(`📧 Email: ${this.email}`);
     }
 
@@ -659,6 +747,11 @@ export class PartialReservationForm {
     
     return {
       userId: this.userId,
+      isAdminBooking: this.isAdminBooking,
+      reservationFor: this.reservationFor,
+      beneficiaryName: this.beneficiaryName,
+      beneficiaryPhone: this.beneficiaryPhone,
+      beneficiaryEmail: this.beneficiaryEmail,
       spaceType: this.spaceType,
       date: this.date,
       time: this.time,
@@ -689,6 +782,11 @@ export class PartialReservationForm {
       date: data.date,
       time: data.time,
       email: data.email,
+      isAdminBooking: data.isAdminBooking,
+      reservationFor: data.reservationFor,
+      beneficiaryName: data.beneficiaryName,
+      beneficiaryPhone: data.beneficiaryPhone,
+      beneficiaryEmail: data.beneficiaryEmail,
       numPeople: data.numPeople,
       durationHours: data.durationHours,
       paymentMethod: data.paymentMethod,
@@ -696,6 +794,9 @@ export class PartialReservationForm {
       secondTime: data.secondTime,
       secondDurationHours: data.secondDurationHours,
       discountPercent: data.discountPercent,
+      durationWasUpgraded: data.durationWasUpgraded,
+      pendingAlternatives: data.pendingAlternatives,
+      desksQuantity: data.desksQuantity,
     }, data.freeTrialUsed !== undefined ? data.freeTrialUsed : freeTrialUsed);  // ← Preferir valor almacenado
   }
 }
@@ -1216,6 +1317,45 @@ export async function processMessageWithForm(userId, message, userProfile = null
   // 1. Obtener o crear formulario (prioriza existingFormData del sistema unificado)
   const freeTrialUsed = userProfile?.freeTrialUsed ?? null;
   const form = await getOrCreateForm(userId, freeTrialUsed, existingFormData);
+  let adminBeneficiaryUpdates = {};
+
+  if (form.isAdminBooking) {
+    const beneficiaryUpdates = extractAdminBeneficiaryData(message, form);
+    adminBeneficiaryUpdates = beneficiaryUpdates;
+    form.updateFields(beneficiaryUpdates);
+
+    if (!form.reservationFor) {
+      const reservationUpdates = extractDataFromMessage(message, form);
+      form.updateFields(reservationUpdates);
+      return {
+        form,
+        updates: { ...beneficiaryUpdates, ...reservationUpdates },
+        isComplete: false,
+        nextQuestion: form.getNextQuestion(),
+        needsMoreInfo: true,
+        summary: form.getSummary(),
+        userMessage: message,
+        validationError: null,
+        confirmationMessage: null,
+        canPauseAndResume: true
+      };
+    }
+
+    if (form.reservationFor === 'self') {
+      form.beneficiaryName = isValidBeneficiaryName(form.beneficiaryName)
+        ? form.beneficiaryName
+        : (isValidBeneficiaryName(userProfile?.name) ? userProfile.name : null);
+      form.beneficiaryPhone = normalizeBeneficiaryPhone(form.beneficiaryPhone || userId);
+      form.beneficiaryEmail = isValidBeneficiaryEmail(form.beneficiaryEmail)
+        ? form.beneficiaryEmail
+        : (isValidBeneficiaryEmail(userProfile?.email) ? userProfile.email : null);
+      form.email = form.beneficiaryEmail;
+    } else {
+      // Una reserva para terceros nunca consume ni hereda la prueba gratuita del administrador.
+      form.freeTrialUsed = true;
+      if (form.beneficiaryEmail) form.email = form.beneficiaryEmail;
+    }
+  }
 
   // 2. Si es el saludo especial Y no hay datos en el formulario, generar mensaje de bienvenida
   if (isSpecialWelcome && !form.spaceType && !form.date && !form.time) {
@@ -1254,18 +1394,54 @@ ${hotDeskInfo}
   }
 
   // 3. Si el perfil tiene email y el formulario no, auto-completar
-  if (userProfile?.email && !form.email) {
+  if (userProfile?.email && !form.email && (!form.isAdminBooking || form.reservationFor === 'self')) {
     form.email = userProfile.email;
     console.log('[FORM] 📧 Email auto-completado desde perfil:', userProfile.email);
   }
 
   // 4. Extraer datos del mensaje
-  const updates = extractDataFromMessage(message, form);
+  const updates = { ...adminBeneficiaryUpdates, ...extractDataFromMessage(message, form) };
 
   // 5. Actualizar formulario si hay datos nuevos
   if (Object.keys(updates).length > 0) {
     form.updateFields(updates);
     console.log('[FORM] 📝 Campos actualizados:', Object.keys(updates));
+  }
+
+  if (form.isAdminBooking && form.reservationFor === 'other' && form.email) {
+    form.beneficiaryEmail = form.email;
+  }
+
+  // La validez del horario no depende del tipo de espacio. Responder primero
+  // evita pedir Hot Desk/Sala cuando la hora ya está fuera de atención.
+  if (form.date && form.time) {
+    const [startHour, startMinute = 0] = form.time.split(':').map(Number);
+    const endTotalMinutes = startHour * 60 + startMinute + Math.round((form.durationHours || 2) * 60);
+    const endTime = `${String(Math.floor(endTotalMinutes / 60)).padStart(2, '0')}:${String(endTotalMinutes % 60).padStart(2, '0')}`;
+    const hoursValidation = validateBusinessHours(form.date, form.time, endTime);
+
+    if (!hoursValidation.valid) {
+      const alternatives = suggestAlternativeSlots(form.date, form.time, form.durationHours || 2, []).slice(0, 3);
+      const alternativesText = alternatives.length
+        ? alternatives.map((slot, index) => `${index + 1}. ${slot.startTime} - ${slot.endTime}`).join('\n')
+        : HOURS.display;
+      const invalidTime = form.time;
+      form.pendingAlternatives = alternatives;
+      form.time = null;
+
+      return {
+        form,
+        updates,
+        isComplete: false,
+        nextQuestion: `⏰ ${invalidTime} está fuera de nuestro horario de atención (${HOURS.display}).\n\nOpciones disponibles para ese día:\n${alternativesText}\n\n¿Te sirve alguna?`,
+        needsMoreInfo: true,
+        summary: form.getSummary(),
+        userMessage: message,
+        validationError: null,
+        confirmationMessage: null,
+        canPauseAndResume: true
+      };
+    }
   }
 
   // 6. Verificar si está completo
@@ -1308,7 +1484,7 @@ ${hotDeskInfo}
         message: `🚫 Los domingos Coworkia está cerrado, lo siento 😊
 
 Estamos abiertos:
-📅 *Lunes a viernes: 7:00 AM - 7:00 PM*
+📅 *${HOURS.display}*
 
 ¿Qué tal si reservas para el lunes ${nextMondayStr}? 🗓️
 
@@ -1340,7 +1516,7 @@ Estamos abiertos:
             message: `🎉 ${nombreFeriado} - Coworkia está cerrado ese día 😊
 
 Estamos abiertos:
-📅 *Lunes a viernes: 7:00 AM - 7:00 PM*
+📅 *${HOURS.display}*
 
 ¿Qué tal si reservas para el ${nextDateStr}? 🗓️
 

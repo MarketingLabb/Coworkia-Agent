@@ -39,6 +39,8 @@ export const HOURS = Object.freeze({
   days: 'Lunes a Viernes',
   open: '8:30 AM',
   close: '6:00 PM',
+  open24: '08:30',
+  close24: '18:00',
 });
 
 // ── 📶 WiFi ───────────────────────────────────────────────────

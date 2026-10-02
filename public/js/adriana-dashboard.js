@@ -1,4 +1,5 @@
 const API_BASE = window.location.origin;
+const DASHBOARD_API = `${API_BASE}/api/adriana/dashboard`;
 let allLeads   = [];
 let activeTab  = 'all';
 let currentFilters = { insuranceType: '', search: '' };
@@ -212,7 +213,7 @@ function renderLeads() {
 // ── UPDATE STATUS ─────────────────────────────────────────────────────────────
 async function updateStatus(code, newStatus) {
   try {
-    const res = await fetch(`${API_BASE}/api/adriana/leads/${code}/status`, {
+    const res = await fetch(`${DASHBOARD_API}/leads/${code}/status`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     });
@@ -229,7 +230,7 @@ async function updateStatus(code, newStatus) {
 async function sendWA(code, btn) {
   const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳';
   try {
-    const res = await fetch(`${API_BASE}/api/adriana/leads/${code}/send-wa`, { method: 'POST' });
+    const res = await fetch(`${DASHBOARD_API}/leads/${code}/send-wa`, { method: 'POST' });
     const d = await res.json();
     if (d.ok) {
       btn.textContent = '✅'; showToast('WhatsApp enviado ✓', 'success');
@@ -247,7 +248,7 @@ async function sendWA(code, btn) {
 async function sendComparison(code, btn) {
   const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Enviando...';
   try {
-    const res = await fetch(`${API_BASE}/api/adriana/leads/${code}/send-comparison`, { method: 'POST' });
+    const res = await fetch(`${DASHBOARD_API}/leads/${code}/send-comparison`, { method: 'POST' });
     const d = await res.json();
     if (d.ok) {
       btn.textContent = '✅ Enviado';
@@ -265,9 +266,9 @@ async function sendComparison(code, btn) {
 // ── STATS ─────────────────────────────────────────────────────────────────────
 async function loadStats() {
   try {
-    const res    = await fetch(`${API_BASE}/api/adriana/leads-stats`);
+    const res    = await fetch(`${DASHBOARD_API}/leads-stats`);
     const result = await res.json();
-    if (!result.ok) return;
+    if (!res.ok || !result.ok) throw new Error('No se pudieron cargar las métricas de Adriana');
     const d = result.data;
     document.getElementById('stat-total').textContent = d.total || 0;
     document.getElementById('stat-month').textContent = d.thisMonth || 0;
@@ -275,8 +276,12 @@ async function loadStats() {
     document.getElementById('stat-accepted').textContent = acceptedCount;
     const rate = parseInt(d.total) > 0 ? Math.round((acceptedCount / parseInt(d.total)) * 100) : 0;
     document.getElementById('stat-conversion').textContent = `${rate}% conversión`;
-    document.getElementById('stat-total-premium').textContent = d.totalPremium > 0 ? formatMoney(d.totalPremium) : '—';
-  } catch (err) { console.error('[ADRIANA-DASH] stats error:', err); }
+    document.getElementById('stat-total-premium').textContent = formatMoney(d.totalPremium || 0);
+  } catch (err) {
+    console.error('[ADRIANA-DASH] stats error:', err);
+    document.getElementById('stat-total').textContent = 'Error';
+    showToast(err.message);
+  }
 }
 
 // ── LEADS ─────────────────────────────────────────────────────────────────────
@@ -284,9 +289,9 @@ async function loadLeads() {
   const container = document.getElementById('leads-container');
   container.innerHTML = '<div class="loading">⏳ Cargando leads de Adriana...</div>';
   try {
-    const res    = await fetch(`${API_BASE}/api/adriana/leads?limit=500`);
+    const res    = await fetch(`${DASHBOARD_API}/leads?limit=500`);
     const result = await res.json();
-    if (!result.ok) throw new Error(result.error || 'Error desconocido');
+    if (!res.ok || !result.ok) throw new Error('No se pudieron cargar los leads de Adriana');
     allLeads = result.data || [];
     updateTabCounts();
     renderLeads();
@@ -311,7 +316,7 @@ async function seedDemo() {
   if (!btn) return;
   const orig = btn.textContent; btn.textContent = '⏳ Cargando...'; btn.disabled = true;
   try {
-    const r = await fetch('/api/adriana/seed-demo');
+    const r = await fetch(`${DASHBOARD_API}/seed-demo`);
     const d = await r.json();
     if (d.ok) {
       btn.textContent = `✅ ${d.inserted} listos`;

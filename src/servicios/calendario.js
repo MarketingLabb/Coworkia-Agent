@@ -2,6 +2,7 @@
 // Maneja disponibilidad, reservas y límites de espacios
 
 import reservationRepository from '../database/reservationRepository.js';
+import { HOURS } from '../utils/coworkia-facts.js';
 
 const IS_TEST = (process.env.NODE_ENV || '').toLowerCase() === 'test';
 
@@ -11,8 +12,8 @@ const IS_TEST = (process.env.NODE_ENV || '').toLowerCase() === 'test';
 const CALENDAR_CONFIG = {
   maxSimultaneousSpaces: 5, // Máximo 5 espacios al mismo tiempo
   workingHours: {
-    startMinutes: 7 * 60,       // 7:00 AM — consistente con reservation-validation.js
-    endMinutes: 19 * 60 + 30   // 7:30 PM — grace period (cierre oficial 7PM + 30min cortesía)
+    startMinutes: timeToMinutes(HOURS.open24),
+    endMinutes: timeToMinutes(HOURS.close24)
   },
   timeSlots: 60, // Slots de 60 minutos
   availableSpaces: ['hotDesk1', 'hotDesk2', 'hotDesk3', 'hotDesk4', 'meetingRoom1', 'privateOffice1']
@@ -292,14 +293,14 @@ export async function checkAvailability(
   const startMinutes = timeToMinutes(startTime);
   const endMinutes = startMinutes + (durationHours * 60);
   
-  // Verificar horario laboral (7:00 AM - 7:30 PM con grace period)
+  // Verificar horario laboral canónico.
   const workStart = CALENDAR_CONFIG.workingHours.startMinutes;
   const workEnd = CALENDAR_CONFIG.workingHours.endMinutes;
   
   if (startMinutes < workStart || endMinutes > workEnd) {
     return {
       available: false,
-      reason: 'Fuera del horario laboral (7:00 AM - 7:00 PM)',
+      reason: `Fuera del horario laboral (${HOURS.display})`,
       alternatives: await suggestAlternatives(date, durationHours, serviceType, startTime, requiredSpaces)
     };
   }

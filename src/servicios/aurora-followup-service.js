@@ -26,6 +26,12 @@ import {
 } from '../database/auroraRepository.js';
 import { loggers } from '../utils/logger.js';
 import { getUserPreferredLanguage } from '../perfiles-interacciones/memoria-sqlite.js';
+import { validateEmail } from '../utils/email-validator.js';
+import { CONTACT, HOURS, LOCATION, MEMBERSHIP_PLANS, WIFI } from '../utils/coworkia-facts.js';
+import {
+  findDueAutomationBatches,
+  processAutomationBatch,
+} from './automation-delivery-service.js';
 
 const logger = loggers.aurora || console;
 const AUTOMATION_LANGUAGES = ['es', 'en', 'fr', 'it', 'pt', 'qu'];
@@ -86,12 +92,12 @@ function getD3FomoLine({ wasFree, serviceType, lang = 'es' }) {
   const type = wasFree ? 'free' : isMeetingRoom ? 'meeting' : 'membership';
   const lines = {
     free: {
-      es: '🎁 Tu primera visita gratis ya pasó, pero tenemos *15% OFF* en tu siguiente reserva esta semana.',
-      en: '🎁 Your first free visit is over, but you have *15% OFF* on your next booking this week.',
-      fr: '🎁 Votre première visite gratuite est passée, mais vous avez *15% OFF* sur votre prochaine réservation cette semaine.',
-      it: '🎁 La tua prima visita gratuita è passata, ma hai *15% OFF* sulla prossima prenotazione questa settimana.',
-      pt: '🎁 Sua primeira visita grátis já passou, mas você tem *15% OFF* na próxima reserva desta semana.',
-      qu: '🎁 Tu primera visita gratis ya pasó, pero tienes *15% OFF* esta semana.',
+      es: '🎁 Esperamos que hayas disfrutado tu primera visita. Puedo ayudarte a reservar nuevamente.',
+      en: '🎁 We hope you enjoyed your first visit. I can help you book again.',
+      fr: '🎁 Nous espérons que vous avez apprécié votre première visite. Je peux vous aider à réserver à nouveau.',
+      it: '🎁 Speriamo che la tua prima visita ti sia piaciuta. Posso aiutarti a prenotare di nuovo.',
+      pt: '🎁 Esperamos que tenha gostado da sua primeira visita. Posso ajudar você a reservar novamente.',
+      qu: '🎁 Esperamos que hayas disfrutado tu primera visita. Puedo ayudarte a reservar de nuevo.',
     },
     meeting: {
       es: '👥 ¿Tienes otra reunión pendiente? Salas disponibles esta semana con horarios flexibles.',
@@ -102,15 +108,50 @@ function getD3FomoLine({ wasFree, serviceType, lang = 'es' }) {
       qu: '👥 ¿Tienes otra reunión pendiente? Hay salas disponibles esta semana.',
     },
     membership: {
-      es: '💡 ¿Sabías que con una *Membresía Coworkia* ahorras hasta un 40%? Pregúntame por los planes.',
-      en: '💡 Did you know a *Coworkia Membership* can save you up to 40%? Ask me about the plans.',
-      fr: '💡 Saviez-vous qu’un *abonnement Coworkia* peut vous faire économiser jusqu’à 40%? Demandez-moi les plans.',
-      it: '💡 Sapevi che con un *abbonamento Coworkia* puoi risparmiare fino al 40%? Chiedimi i piani.',
-      pt: '💡 Sabia que uma *assinatura Coworkia* pode ajudar você a economizar até 40%? Pergunte-me sobre os planos.',
-      qu: '💡 Con una *Membresía Coworkia* puedes ahorrar hasta 40%. Pregúntame por los planes.',
+      es: '💡 Si vienes con frecuencia, pregúntame por los planes de *Membresía Coworkia*.',
+      en: '💡 If you visit often, ask me about *Coworkia Membership* plans.',
+      fr: '💡 Si vous venez souvent, demandez-moi les formules d’abonnement Coworkia.',
+      it: '💡 Se vieni spesso, chiedimi dei piani di abbonamento Coworkia.',
+      pt: '💡 Se você vem com frequência, pergunte sobre os planos de assinatura Coworkia.',
+      qu: '💡 Si vienes con frecuencia, pregúntame por las membresías Coworkia.',
     },
   };
   return lines[type][lang] ?? lines[type].es;
+}
+
+function whatsappDelivery(recipient, message) {
+  return { channel: 'whatsapp', recipient, payload: { recipient, message } };
+}
+
+function emailDelivery(recipient, subject, html) {
+  return {
+    channel: 'email',
+    recipient,
+    payload: { to: recipient, subject, html, agent: 'aurora' },
+  };
+}
+
+async function dispatchAutomationDelivery(delivery) {
+  const payload = typeof delivery.payload === 'string'
+    ? JSON.parse(delivery.payload)
+    : delivery.payload;
+  if (delivery.channel === 'whatsapp') {
+    return enviarWhatsApp(payload.recipient, payload.message);
+  }
+  if (delivery.channel === 'email') {
+    return sendEmail(payload);
+  }
+  throw new Error('Unsupported automation delivery channel');
+}
+
+async function deliverReservationAutomation(record, automationKey, legacyColumn, deliveries = null) {
+  return processAutomationBatch({
+    entityId: record.id || record.last_reservation_id,
+    automationKey,
+    legacyColumn,
+    deliveries,
+    dispatch: dispatchAutomationDelivery,
+  });
 }
 
 /**
@@ -166,12 +207,18 @@ export async function sendOneHourFollowups() {
           continue;
         }
         const waMessage = buildOneHourWhatsApp(reservation);
-        await enviarWhatsApp(reservation.user_phone, waMessage);
+        const delivery = await deliverReservationAutomation(
+          reservation,
+          'aurora_followup_1h',
+          'followup_1h_sent_at',
+          [whatsappDelivery(reservation.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
 
-        await markFollowup1hSent(reservation.id);
-        sent++;
-
-        logger.info(`[AURORA-FOLLOWUP] ✅ +1h enviado: ${describeAutomationTarget(reservation)} (${reservation.service_type})`);
+        if (delivery.complete) {
+          logger.info(`[AURORA-FOLLOWUP] ✅ +1h enviado: ${describeAutomationTarget(reservation)} (${reservation.service_type})`);
+        }
 
         // Delay entre envíos
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -222,12 +269,18 @@ export async function sendRebookingReminders() {
           continue;
         }
         const waMessage = buildRebookingWhatsApp(reservation);
-        await enviarWhatsApp(reservation.user_phone, waMessage);
+        const delivery = await deliverReservationAutomation(
+          reservation,
+          'aurora_rebook_d7',
+          'rebook_reminder_sent_at',
+          [whatsappDelivery(reservation.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
 
-        await markRebookReminderSent(reservation.id);
-        sent++;
-
-        logger.info(`[AURORA-FOLLOWUP] ✅ D+7 enviado: ${describeAutomationTarget(reservation)}`);
+        if (delivery.complete) {
+          logger.info(`[AURORA-FOLLOWUP] ✅ D+7 enviado: ${describeAutomationTarget(reservation)}`);
+        }
         await new Promise(resolve => setTimeout(resolve, 1500));
 
       } catch (err) {
@@ -264,7 +317,8 @@ export async function sendOneHourFollowup(reservation) {
     return { success: true, skipped: true };
   }
   const waMessage = buildOneHourWhatsApp(reservation);
-  await enviarWhatsApp(reservation.user_phone, waMessage);
+  const result = await enviarWhatsApp(reservation.user_phone, waMessage);
+  if (result?.ok !== true) throw new Error('WhatsApp provider rejected manual follow-up');
   await markFollowup1hSent(reservation.id);
   logger.info(`[AURORA-FOLLOWUP] ✅ +1h manual enviado: ${describeAutomationTarget(reservation)}`);
 }
@@ -278,7 +332,8 @@ export async function sendRebookingReminder(reservation) {
     return { success: true, skipped: true };
   }
   const waMessage = buildRebookingWhatsApp(reservation);
-  await enviarWhatsApp(reservation.user_phone, waMessage);
+  const result = await enviarWhatsApp(reservation.user_phone, waMessage);
+  if (result?.ok !== true) throw new Error('WhatsApp provider rejected manual rebooking reminder');
   await markRebookReminderSent(reservation.id);
   logger.info(`[AURORA-FOLLOWUP] ✅ D+7 manual enviado: ${describeAutomationTarget(reservation)}`);
 }
@@ -370,17 +425,16 @@ export async function sendAuroraD1Followups() {
           qu: `Napaykullayki ${firstName}! 😊\n\nAyer disfrutaste de tu *${serviceLabel}* en Coworkia. ${serviceQuestion}\n\nTu calificación nos ayuda. ¿Qué nota nos das del 1 al 5? ⭐\n\n¿Quieres volver? Solo avísame 📅`,
         };
         const waMessage = D1_MSG[userLang] ?? D1_MSG.es;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        if (r.user_email) {
+        const deliveries = [whatsappDelivery(r.user_phone, waMessage)];
+        if (r.user_email && validateEmail(r.user_email).valid) {
           const html = buildEmailTemplate('AURORA', 'D1', {
             nombre: r.user_name || firstName, servicio: serviceLabel, dia: formatDateEs(r.date)
           });
-          await sendEmail({ to: r.user_email, subject: '¿Cómo estuvo tu experiencia en Coworkia? 🌟', html, agent: 'aurora' });
+          deliveries.push(emailDelivery(r.user_email, '¿Cómo estuvo tu experiencia en Coworkia? 🌟', html));
         }
-
-        await databaseService.run(`UPDATE reservations SET followup_d1_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const delivery = await deliverReservationAutomation(r, 'aurora_d1', 'followup_d1_sent_at', deliveries);
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
         await new Promise(resolve => setTimeout(resolve, 2500));
       } catch (err) {
         errors++;
@@ -434,28 +488,27 @@ export async function sendAuroraD3Followups() {
           lang: userLangD3,
         });
         const D3_MSG = {
-          es: `¡Hola ${firstName}! 🚀\n\nHan pasado 3 días desde tu visita a Coworkia. ¿Cuándo vuelves?\n\n${fomoLine}\n\n📊 *Esta semana en Coworkia:*\n✅ WiFi premium · ☕ Café ilimitado\n\nSolo dime qué día y hora y reservo para ti 📅`,
-          en: `Hi ${firstName}! 🚀\n\nIt's been 3 days since your visit to Coworkia. When are you coming back?\n\n${fomoLine}\n\n📊 *This week at Coworkia:*\n✅ Premium WiFi · ☕ Unlimited coffee\n\nJust tell me what day and time and I'll book for you 📅`,
-          fr: `Bonjour ${firstName}! 🚀\n\nCela fait 3 jours depuis votre visite chez Coworkia. Quand revenez-vous?\n\n${fomoLine}\n\n📊 *Cette semaine chez Coworkia:*\n✅ WiFi premium · ☕ Café illimité\n\nDites-moi le jour et l'heure et je réserve pour vous 📅`,
-          it: `Ciao ${firstName}! 🚀\n\nSono passati 3 giorni dalla tua visita da Coworkia. Quando torni?\n\n${fomoLine}\n\n📊 *Questa settimana da Coworkia:*\n✅ WiFi premium · ☕ Caffè illimitato\n\nDimmi giorno e orario e prenoto per te 📅`,
-          pt: `Olá ${firstName}! 🚀\n\nFaz 3 dias desde a sua visita à Coworkia. Quando volta?\n\n${fomoLine}\n\n📊 *Esta semana na Coworkia:*\n✅ WiFi premium · ☕ Café ilimitado\n\nMe diga o dia e horário e faço a reserva 📅`,
-          qu: `Napaykullayki ${firstName}! 🚀\n\nKinsa punchaumanta Coworkia-pi kashqaykimanta. ¿Cuándo vuelves?\n\n${fomoLine}\n\n📊 *Esta semana:*\n✅ WiFi premium · ☕ Café\n\nDime el día y hora 📅`,
+          es: `¡Hola ${firstName}! 🚀\n\nHan pasado 3 días desde tu visita a Coworkia. ¿Cuándo vuelves?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nSolo dime qué día y hora y reservo para ti 📅`,
+          en: `Hi ${firstName}! 🚀\n\nIt's been 3 days since your visit to Coworkia. When are you coming back?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nJust tell me what day and time and I'll book for you 📅`,
+          fr: `Bonjour ${firstName}! 🚀\n\nCela fait 3 jours depuis votre visite chez Coworkia. Quand revenez-vous?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nDites-moi le jour et l'heure et je réserve pour vous 📅`,
+          it: `Ciao ${firstName}! 🚀\n\nSono passati 3 giorni dalla tua visita da Coworkia. Quando torni?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nDimmi giorno e orario e prenoto per te 📅`,
+          pt: `Olá ${firstName}! 🚀\n\nFaz 3 dias desde a sua visita à Coworkia. Quando volta?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nMe diga o dia e horário e faço a reserva 📅`,
+          qu: `Napaykullayki ${firstName}! 🚀\n\nKinsa punchaumanta Coworkia-pi kashqaykimanta. ¿Cuándo vuelves?\n\n${fomoLine}\n\n✅ ${WIFI.display}\n🕐 ${HOURS.display}\n📍 ${LOCATION.addressFull}\n📱 ${CONTACT.phoneDisplay}\n\nDime el día y hora 📅`,
         };
         const waMessage = D3_MSG[userLangD3] ?? D3_MSG.es;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        if (r.user_email) {
+        const deliveries = [whatsappDelivery(r.user_phone, waMessage)];
+        if (r.user_email && validateEmail(r.user_email).valid) {
           const html = buildEmailTemplate('AURORA', 'D3', {
             nombre: r.user_name || firstName, servicio: serviceLabel, wasFree
           });
           const subjectName = (firstName && firstName !== '.' && firstName !== 'amig@' && firstName.length > 1)
             ? `, ${firstName}`
             : '';
-          await sendEmail({ to: r.user_email, subject: `¿Cuándo vuelves a Coworkia${subjectName}? 🚀`, html, agent: 'aurora' });
+          deliveries.push(emailDelivery(r.user_email, `¿Cuándo vuelves a Coworkia${subjectName}? 🚀`, html));
         }
-
-        await databaseService.run(`UPDATE reservations SET followup_d3_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const delivery = await deliverReservationAutomation(r, 'aurora_d3', 'followup_d3_sent_at', deliveries);
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
         await new Promise(resolve => setTimeout(resolve, 2500));
       } catch (err) {
         errors++;
@@ -502,18 +555,17 @@ export async function sendAuroraReminder24h() {
         const firstName = r.user_name ? r.user_name.split(' ')[0] : 'amig@';
 
         const waMessage = `¡Hola ${firstName}! 📅\n\nTe recordamos que *mañana* a las *${r.start_time}* tienes tu reserva de *${serviceLabel}* en Coworkia.\n\n📍 *Dirección:* ${COWORKIA_ADDRESS}\n🏙️ Zona segura — acceso directo en planta baja\n📍 ${COWORKIA_MAPS_URL}\n☕ Café incluido\n\n¿Todo listo? Si necesitas cancelar o cambiar la hora, escríbeme y te ayudo 😊`;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        if (r.user_email) {
+        const deliveries = [whatsappDelivery(r.user_phone, waMessage)];
+        if (r.user_email && validateEmail(r.user_email).valid) {
           const html = buildEmailTemplate('AURORA', 'REMINDER_24H', {
             nombre: r.user_name || firstName, servicio: serviceLabel,
             dia: formatDateEs(r.date), hora: r.start_time
           });
-          await sendEmail({ to: r.user_email, subject: `📅 Mañana a las ${r.start_time} te esperamos en Coworkia`, html, agent: 'aurora' });
+          deliveries.push(emailDelivery(r.user_email, `📅 Mañana a las ${r.start_time} te esperamos en Coworkia`, html));
         }
-
-        await databaseService.run(`UPDATE reservations SET reminder_24h_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const delivery = await deliverReservationAutomation(r, 'aurora_reminder_24h', 'reminder_24h_sent_at', deliveries);
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
         errors++;
@@ -562,10 +614,12 @@ export async function sendAuroraReminder2h() {
         const firstName = r.user_name ? r.user_name.split(' ')[0] : 'amig@';
 
         const waMessage = `🔔 *¡Recordatorio!* ${firstName}\n\nEn *2 horas* te esperamos en Coworkia para tu *${serviceLabel}* a las *${r.start_time}*.\n\n📍 ${COWORKIA_ADDRESS}\n📍 ${COWORKIA_MAPS_URL}\n\n¡Nos vemos pronto! 😊`;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        await databaseService.run(`UPDATE reservations SET reminder_2h_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const delivery = await deliverReservationAutomation(
+          r, 'aurora_reminder_2h', 'reminder_2h_sent_at',
+          [whatsappDelivery(r.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
         errors++;
@@ -623,11 +677,13 @@ export async function sendAuroraReminder10min() {
             ? `\n💰 Pago pendiente: $${parseFloat(r.total_price).toFixed(2)} (efectivo al llegar)`
             : '';
 
-        const waMessage = `⏰ *¡${firstName ? firstName + ', f' : 'F'}altan 10 minutos!*\n\nTu *${serviceLabel}* comienza a las *${r.start_time}* ${r.end_time ? `hasta las *${r.end_time}*` : ''}.\n${deskInfo}${payInfo}\n\n📍 *Coworkia Quito*\n${COWORKIA_ADDRESS}\n🏙️ Zona segura — acceso directo en planta baja\n📍 ${COWORKIA_MAPS_URL}\n🔑 WiFi: *CoworkiaWiFi* / Clave: *coworkia2024*\n☕ Café de cortesía en recepción\n\n¡Te esperamos! 😊`;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        await databaseService.run(`UPDATE reservations SET reminder_10min_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const waMessage = `⏰ *¡${firstName ? firstName + ', f' : 'F'}altan 10 minutos!*\n\nTu *${serviceLabel}* comienza a las *${r.start_time}* ${r.end_time ? `hasta las *${r.end_time}*` : ''}.\n${deskInfo}${payInfo}\n\n📍 *Coworkia Quito*\n${LOCATION.addressFull}\n📍 ${LOCATION.mapsUrl}\n📶 ${WIFI.display}\n📱 ${CONTACT.phoneDisplay}\n\n¡Te esperamos! 😊`;
+        const delivery = await deliverReservationAutomation(
+          r, 'aurora_reminder_10min', 'reminder_10min_sent_at',
+          [whatsappDelivery(r.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
+        if (delivery.failed) errors++;
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
         errors++;
@@ -674,15 +730,13 @@ export async function detectAuroraNoShows() {
           continue;
         }
         const firstName = r.user_name ? r.user_name.split(' ')[0] : 'amig@';
-        const wasFree = parseFloat(r.total_price || 0) === 0;
-        const freeNote = wasFree ? '\n🎁 Tu visita gratis sigue disponible. Reagenda cuando quieras.' : '';
 
-        await databaseService.run(`UPDATE reservations SET no_show_detected_at = NOW() WHERE id = $1`, [r.id]);
-
-        const waMessage = `Hola ${firstName} 👋\n\nNotamos que no pudiste venir a tu reserva en Coworkia. ¡Esperamos que todo esté bien!\n\nNo te preocupes, estas cosas pasan. ¿Te gustaría reagendar para otro día?${freeNote}\n\nSolo dime la fecha y hora que te queden mejor y reservo para ti 😊`;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        sent++;
+        const waMessage = `Hola ${firstName} 👋\n\nNotamos que no pudiste venir a tu reserva en Coworkia. ¡Esperamos que todo esté bien!\n\nNo te preocupes, estas cosas pasan. ¿Te gustaría reagendar para otro día?\n\nSolo dime la fecha y hora que te queden mejor y reservo para ti 😊`;
+        const delivery = await deliverReservationAutomation(
+          r, 'aurora_no_show', 'no_show_detected_at',
+          [whatsappDelivery(r.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
         await new Promise(resolve => setTimeout(resolve, 2500));
       } catch (err) {
         logger.error(`[AURORA-NOSHOW] ❌ Error ${r.id}:`, err.message);
@@ -729,20 +783,13 @@ export async function sendAuroraUpsellAluna() {
           continue;
         }
         const firstName = u.user_name ? u.user_name.split(' ')[0] : 'amig@';
-        const totalGastado = parseFloat(u.total_gastado || 0);
-        const alunaGoldCost = 180;
-        const potentialSavings = totalGastado - alunaGoldCost;
-        const savingsPercent = totalGastado > 0 ? Math.round((potentialSavings / totalGastado) * 100) : 0;
 
-        const savingsLine = potentialSavings > 0
-          ? `• Con Membresía Gold ($180/mes): *ahorras $${potentialSavings.toFixed(0)} (${savingsPercent}%)*`
-          : '• Con Membresía Gold: acceso ilimitado por $180/mes';
-
-        const waMessage = `¡Hola ${firstName}! 🌟\n\nHemos notado que eres un usuario frecuente de Coworkia — *${u.total_reservas} visitas* este mes. ¡Nos encanta tenerte!\n\n💡 ¿Sabías que con una *Membresía Gold* podrías ahorrar?\n\n📊 *Tu mes en números:*\n• Reservas: ${u.total_reservas}\n• Gasto total: $${totalGastado.toFixed(0)}\n${savingsLine}\n\n✅ *Membresía Gold incluye:*\n• Acceso ilimitado a Hot Desk\n• 4 horas/mes de Sala de Reuniones\n• WiFi premium + Café ilimitado\n• Casillero dedicado\n\n¿Te interesa? Escríbeme y te paso los detalles 📋`;
-        await enviarWhatsApp(u.user_phone, waMessage);
-
-        await databaseService.run(`UPDATE reservations SET upsell_aluna_sent_at = NOW() WHERE id = $1`, [u.last_reservation_id]);
-        sent++;
+        const waMessage = `¡Hola ${firstName}! 🌟\n\nHemos notado que eres un usuario frecuente de Coworkia — *${u.total_reservas} visitas* este mes. ¡Nos encanta tenerte!\n\nAluna puede contarte sobre nuestros planes vigentes:\n• *${MEMBERSHIP_PLANS.plan10.name}:* ${MEMBERSHIP_PLANS.plan10.priceDisplay}\n• *${MEMBERSHIP_PLANS.plan20.name}:* ${MEMBERSHIP_PLANS.plan20.priceDisplay}\n\n🕐 ${HOURS.display}\n📶 ${WIFI.display}\n\n¿Te interesa conocer cuál se ajusta mejor a tu rutina? 📋`;
+        const delivery = await deliverReservationAutomation(
+          u, 'aurora_upsell_aluna', 'upsell_aluna_sent_at',
+          [whatsappDelivery(u.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
         await new Promise(resolve => setTimeout(resolve, 3000));
       } catch (err) {
         logger.error(`[AURORA-UPSELL] ❌ Error ${describeAutomationTarget(u)}:`, err.message);
@@ -789,11 +836,12 @@ export async function sendAuroraPaymentReminders() {
         const firstName = r.user_name ? r.user_name.split(' ')[0] : 'amig@';
         const serviceLabel = getServiceLabelLegacy(r.service_type);
 
-        const waMessage = `Hola ${firstName} 👋\n\nTienes una reserva de *${serviceLabel}* para el *${formatDateEs(r.date)}* a las *${r.start_time}* pendiente de pago.\n\n💰 *Monto:* $${parseFloat(r.total_price).toFixed(2)}\n\nPuedes pagar en efectivo al llegar o por transferencia bancaria. Si necesitas ayuda con el pago, escríbeme 😊\n\n⚠️ Las reservas sin pago confirmado pueden ser liberadas 2h antes del horario.\n\n💳 Si quieres dejar todo listo, responde con tu forma de pago preferida:\n   1️⃣ Efectivo al llegar\n   2️⃣ Transferencia bancaria\n\nAsí cuando llegues a Coworkia todo estará listo y sin distracciones 😊`;
-        await enviarWhatsApp(r.user_phone, waMessage);
-
-        await databaseService.run(`UPDATE reservations SET payment_reminder_sent_at = NOW() WHERE id = $1`, [r.id]);
-        sent++;
+        const waMessage = `Hola ${firstName} 👋\n\nTienes una reserva de *${serviceLabel}* para el *${formatDateEs(r.date)}* a las *${r.start_time}* pendiente de pago.\n\n💰 *Monto:* $${parseFloat(r.total_price).toFixed(2)}\n\nPuedes pagar en efectivo al llegar o por transferencia bancaria. Si necesitas ayuda con el pago, escríbeme 😊\n\n💳 Responde con tu forma de pago preferida:\n   1️⃣ Efectivo al llegar\n   2️⃣ Transferencia bancaria`;
+        const delivery = await deliverReservationAutomation(
+          r, 'aurora_payment_reminder', 'payment_reminder_sent_at',
+          [whatsappDelivery(r.user_phone, waMessage)]
+        );
+        if (delivery.complete) sent++;
         await new Promise(resolve => setTimeout(resolve, 2500));
       } catch (err) {
         logger.error(`[AURORA-PAY] ❌ Error ${describeAutomationTarget(r)}:`, err.message);
@@ -804,5 +852,39 @@ export async function sendAuroraPaymentReminders() {
   } catch (err) {
     logger.error('[AURORA-PAY] ❌ Error general:', err.message);
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Recupera entregas con backoff cumplido o leases vencidos. El payload queda
+ * persistido en la outbox, por lo que no depende de que la ventana original
+ * de selección de la automatización siga abierta.
+ */
+export async function retryPendingAuroraDeliveries() {
+  try {
+    const batches = await findDueAutomationBatches();
+    let completed = 0;
+    let failed = 0;
+
+    for (const batch of batches) {
+      try {
+        const result = await processAutomationBatch({
+          entityId: batch.entity_id,
+          automationKey: batch.automation_key,
+          legacyColumn: batch.legacy_column,
+          dispatch: dispatchAutomationDelivery,
+        });
+        if (result.complete) completed++;
+        if (result.failed) failed++;
+      } catch (error) {
+        failed++;
+        logger.error(`[AURORA-DELIVERY] Error recuperando ${batch.automation_key} para reserva ${batch.entity_id}:`, error.message);
+      }
+    }
+
+    return { success: true, processed: batches.length, completed, failed };
+  } catch (error) {
+    logger.error('[AURORA-DELIVERY] Error general de recuperación:', error.message);
+    return { success: false, error: error.message };
   }
 }

@@ -67,9 +67,11 @@ describe('Aurora Validation Errors Structure', () => {
 
   test('validación correcta no debe tener errores', () => {
     // Usar fecha futura para evitar error de ventana
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const futureDate = tomorrow.toISOString().split('T')[0];
+      const future = new Date();
+      do {
+      future.setUTCDate(future.getUTCDate() + 1);
+      } while ([0, 6].includes(future.getUTCDay()));
+      const futureDate = future.toISOString().split('T')[0];
     
     const result = validateReservation(
       futureDate,

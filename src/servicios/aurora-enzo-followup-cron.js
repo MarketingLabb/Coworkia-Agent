@@ -1,7 +1,7 @@
 /**
  * ⏰ Aurora + Enzo Follow-up Cron Jobs
  * 
- * HORARIOS (Ecuador UTC-5, usar UTC en cron):
+ * HORARIOS (zona America/Guayaquil configurada en cada CronJob):
  * Aurora:
  *   - Cada 15 min: +1h post-reserva (verificación frecuente)
  *   - 10:00 AM:    D+7 rebooking reminder
@@ -16,7 +16,8 @@ import {
   sendOneHourFollowups, sendRebookingReminders,
   sendAuroraD1Followups, sendAuroraD3Followups,
   sendAuroraReminder24h, sendAuroraReminder2h, sendAuroraReminder10min,
-  detectAuroraNoShows, sendAuroraUpsellAluna, sendAuroraPaymentReminders
+  detectAuroraNoShows, sendAuroraUpsellAluna, sendAuroraPaymentReminders,
+  retryPendingAuroraDeliveries
 } from './aurora-followup-service.js';
 import { sendEnzoD1Followups, sendEnzoD3Followups, sendEnzoD7Followups } from './enzo-followup-service.js';
 import { sendAdrianaS1Followups, sendAdrianaS2Followups, sendAdrianaS3Followups } from './adriana-followup-service.js';
@@ -48,9 +49,29 @@ export function startAuroraEnzoCronJobs() {
 
   logger.info('[CRON] ✅ Aurora +1h configurado (cada 15 min)');
 
-  // ─── AURORA: D+7 rebooking (10:00 AM Ecuador = 15:00 UTC) ────────
+  // ─── AURORA: recuperación outbox (cada 5 min) ─────────────
+  const auroraDeliveryRetryJob = new CronJob(
+    '*/5 * * * *',
+    async function () {
+      try {
+        const result = await retryPendingAuroraDeliveries();
+        if (result.success && result.processed > 0) {
+          logger.info(`[CRON-AURORA] Outbox: ${result.completed} completados, ${result.failed} fallidos`);
+        }
+      } catch (err) {
+        logger.error('[CRON-AURORA] Error recuperando outbox:', err);
+      }
+    },
+    null,
+    true,
+    'America/Guayaquil'
+  );
+
+  logger.info('[CRON] ✅ Aurora outbox configurada (cada 5 min)');
+
+  // ─── AURORA: D+7 rebooking (10:00 AM Ecuador) ────────────────────
   const auroraRebookJob = new CronJob(
-    '0 15 * * *',
+    '0 10 * * *',
     async function () {
       logger.info('[CRON-AURORA] 📅 Ejecutando rebooking D+7...');
       try {
@@ -180,9 +201,9 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Adriana S3 configurado (09:30 AM Ecuador)');
 
-  // ─── AURORA: D+1 feedback (10:05 AM Ecuador = 15:05 UTC) ─────
+  // ─── AURORA: D+1 feedback (10:05 AM Ecuador) ─────────────────
   const auroraD1Job = new CronJob(
-    '5 15 * * *',
+    '5 10 * * *',
     async function () {
       logger.info('[CRON-AURORA] 📨 Ejecutando D+1 follow-up...');
       try {
@@ -194,9 +215,9 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Aurora D+1 configurado (10:05 AM Ecuador)');
 
-  // ─── AURORA: D+3 FOMO (14:00 Ecuador = 19:00 UTC) ────────────
+  // ─── AURORA: D+3 seguimiento (14:00 Ecuador) ─────────────────
   const auroraD3Job = new CronJob(
-    '0 19 * * *',
+    '0 14 * * *',
     async function () {
       logger.info('[CRON-AURORA] 🔥 Ejecutando D+3 FOMO follow-up...');
       try {
@@ -208,9 +229,9 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Aurora D+3 FOMO configurado (14:00 PM Ecuador)');
 
-  // ─── AURORA: Reminder 24h (18:00 Ecuador = 23:00 UTC) ────────
+  // ─── AURORA: Reminder 24h (18:00 Ecuador) ────────────────────
   const auroraReminder24hJob = new CronJob(
-    '0 23 * * *',
+    '0 18 * * *',
     async function () {
       logger.info('[CRON-AURORA] 📅 Ejecutando recordatorio 24h...');
       try {
@@ -235,9 +256,9 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Aurora reminder 2h configurado (cada 30min 8-18h Ecuador)');
 
-  // ─── AURORA: Reminder 10min (cada 5min 7-20h) ────────────────
+  // ─── AURORA: Reminder 10min (cada 5min 8-18h) ────────────────
   const auroraReminder10minJob = new CronJob(
-    '*/5 7-20 * * *',
+    '*/5 8-18 * * *',
     async function () {
       try {
         const result = await sendAuroraReminder10min();
@@ -246,7 +267,7 @@ export function startAuroraEnzoCronJobs() {
     },
     null, true, 'America/Guayaquil'
   );
-  logger.info('[CRON] ✅ Aurora reminder 10min configurado (cada 5min 7-20h Ecuador)');
+  logger.info('[CRON] ✅ Aurora reminder 10min configurado (cada 5min 8-18h Ecuador)');
 
   // ─── AURORA: No-Show Detection (cada 4h) ─────────────────────
   const auroraNoShowJob = new CronJob(
@@ -264,7 +285,7 @@ export function startAuroraEnzoCronJobs() {
 
   // ─── AURORA: Upsell Aluna (lunes 10:00 AM) ───────────────────
   const auroraUpsellJob = new CronJob(
-    '0 15 * * 1',
+    '0 10 * * 1',
     async function () {
       logger.info('[CRON-AURORA] 🎯 Ejecutando upselling Aluna...');
       try {
@@ -278,7 +299,7 @@ export function startAuroraEnzoCronJobs() {
 
   // ─── AURORA: Payment Reminders (8:00 AM diario) ──────────────
   const auroraPaymentJob = new CronJob(
-    '0 13 * * *',
+    '0 8 * * *',
     async function () {
       logger.info('[CRON-AURORA] 💳 Ejecutando payment reminders...');
       try {
@@ -307,10 +328,10 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Autotraining semanal configurado (domingo 3:00 AM Ecuador)');
 
-  logger.info('[CRON] 🚀 Aurora + Enzo + Adriana follow-up crons activos (17 jobs)');
+  logger.info('[CRON] 🚀 Aurora + Enzo + Adriana follow-up crons activos (18 jobs)');
 
   return {
-    aurora1hJob, auroraRebookJob, enzoD1Job, enzoD3Job, enzoD7Job,
+    aurora1hJob, auroraDeliveryRetryJob, auroraRebookJob, enzoD1Job, enzoD3Job, enzoD7Job,
     adrianaS1Job, adrianaS2Job, adrianaS3Job,
     auroraD1Job, auroraD3Job, auroraReminder24hJob, auroraReminder2hJob,
     auroraReminder10minJob, auroraNoShowJob, auroraUpsellJob, auroraPaymentJob,

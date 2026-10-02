@@ -14,6 +14,7 @@ import {
 import { savePendingConfirmation } from '../perfiles-interacciones/memoria-sqlite.js';
 import reservationRepository from '../database/reservationRepository.js';
 import { normalizeTimeFormat, parseDate } from '../utils/date-time-parser.js';
+import { HOURS } from '../utils/coworkia-facts.js';
 
 /**
  * ✅ Detecta si Aurora quiere activar un flujo de confirmación
@@ -299,17 +300,21 @@ export async function processAuroraConfirmationRequest(originalMessage, userProf
         }
 
         reservationData = {
+          userId: form.isAdminBooking ? form.beneficiaryPhone : userProfile.userId,
+          userName: form.isAdminBooking ? form.beneficiaryName : (userProfile.name || 'Cliente'),
+          bookedByPhone: form.isAdminBooking ? userProfile.userId : null,
+          reservationFor: form.isAdminBooking ? form.reservationFor : null,
           date: form.date,
           startTime: form.time,
           endTime: `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`,
           durationHours: form.durationHours || 2,
           serviceType: _serviceType,
-          email: form.email || userProfile.email,
+          email: form.isAdminBooking ? form.beneficiaryEmail : (form.email || userProfile.email),
           numPeople: form.numPeople || 1,
           paymentMethod: form.paymentMethod || null, // 💳 efectivo | transferencia | tarjeta
           totalPrice: resolvedTotalPrice,
           // wasFree: primera visita + hotDesk + dentro ventana 08:00–12:00
-          wasFree: _isFreeWindow
+          wasFree: form.reservationFor === 'other' ? false : _isFreeWindow
         };
         
         console.log('[AURORA-PROCESS] ✅ Datos construidos desde formulario:', reservationData);
@@ -397,8 +402,7 @@ Por favor, intenta así:
         userMessage: `🚫 Los domingos Coworkia está cerrado, Diego 😊
 
 Estamos abiertos:
-📅 Lunes a viernes: 7:00 AM - 7:00 PM
-📅 Sábado: 9:00 AM - 2:00 PM
+📅 ${HOURS.display}
 
 ¿Qué tal si reservas para el lunes ${nextMondayStr}? 🗓️`
       };
@@ -559,7 +563,7 @@ ${alternatives.slice(0, 3).map((alt, i) => `${i+1}. ${alt.startTime} - ${alt.end
         
         if (isOverMax) {
           // Calcular el máximo hasta las 7pm (cierre)
-          const closeTime = '19:30'; // 7PM cierre oficial + 30min grace
+          const closeTime = HOURS.close24;
           const [startH, startM] = reservationData.startTime.split(':').map(Number);
           const [closeH, closeM] = closeTime.split(':').map(Number);
           const startMinutes = startH * 60 + startM;
@@ -579,8 +583,7 @@ ${alternatives.slice(0, 3).map((alt, i) => `${i+1}. ${alt.startTime} - ${alt.end
 
 📋 *Límites de reserva:*
 • Mínimo: 2 horas
-• Horario: 7:00 AM - 7:00 PM
-• Cortesía: te esperamos hasta 7:30 PM 😊
+• Horario: ${HOURS.display}
 
 💡 *Ajustando a máximo disponible:*
 🕐 ${reservationData.startTime} - ${suggestedEnd} (${suggestedDuration}h)
@@ -754,7 +757,7 @@ function generateErrorMessage(error, alternatives) {
   
   // Identificar tipo de error y dar respuesta apropiada
   if (error.includes('Fuera del horario laboral')) {
-    message += 'Ese horario está fuera de nuestro horario de atención (7:00 AM - 8:00 PM). ';
+    message += `Ese horario está fuera de nuestro horario de atención (${HOURS.display}). `;
     message += '\n\n¿Te gustaría reservar para mañana o en otro horario? 🗓️';
   } else if (error.includes('pasado')) {
     message += 'Ese horario ya pasó. ';

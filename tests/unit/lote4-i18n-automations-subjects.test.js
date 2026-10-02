@@ -4,6 +4,14 @@ const enviarWhatsApp = jest.fn().mockResolvedValue({ ok: true });
 const sendEmail = jest.fn().mockResolvedValue({ success: true, messageId: 'test-message' });
 const buildEmailTemplate = jest.fn(() => '<html>template</html>');
 const query = jest.fn();
+const processAutomationBatch = jest.fn(async ({ deliveries, dispatch }) => {
+  for (const delivery of deliveries || []) {
+    const result = await dispatch({ ...delivery, payload: delivery.payload });
+    const success = delivery.channel === 'whatsapp' ? result?.ok === true : result?.success === true;
+    if (!success) return { complete: false, failed: true, attempted: true };
+  }
+  return { complete: true, failed: false, attempted: true };
+});
 const databaseService = {
   initialize: jest.fn().mockResolvedValue(),
   all: jest.fn(),
@@ -56,6 +64,11 @@ jest.unstable_mockModule('../../src/database/auroraRepository.js', () => ({
 
 jest.unstable_mockModule('../../src/perfiles-interacciones/memoria-sqlite.js', () => ({
   getUserPreferredLanguage,
+}));
+
+jest.unstable_mockModule('../../src/servicios/automation-delivery-service.js', () => ({
+  processAutomationBatch,
+  findDueAutomationBatches: jest.fn().mockResolvedValue([]),
 }));
 
 jest.unstable_mockModule('../../src/utils/logger.js', () => ({
@@ -266,7 +279,7 @@ describe('Lote 4 — i18n automatizaciones y subjects', () => {
   test('Aurora D+3 localiza fomoLine y evita mezcla de español en idiomas no españoles', async () => {
     const cases = [
       ['es', '¿Cuándo vuelves?', auroraReservation({ total_price: 0 })],
-      ['en', 'Your first free visit is over', auroraReservation({ total_price: 0 })],
+      ['en', 'We hope you enjoyed your first visit', auroraReservation({ total_price: 0 })],
       ['fr', 'Des salles sont disponibles', auroraReservation({ service_type: 'meeting_room', total_price: 50 })],
       ['it', 'abbonamento Coworkia', auroraReservation({ service_type: 'hot_desk', total_price: 12 })],
       ['pt', 'assinatura Coworkia', auroraReservation({ service_type: 'hot_desk', total_price: 12 })],
@@ -289,6 +302,46 @@ describe('Lote 4 — i18n automatizaciones y subjects', () => {
         expect(message).not.toMatch(/Tu primera|¿Tienes otra reunión|¿Sabías|Pregúntame|Salas disponibles/i);
       }
     }
+  });
+
+  test('Aurora conserva elegibilidad y entrega D+1 mediante outbox', async () => {
+    auroraD1Rows = [auroraReservation({ id: 'claim-d1', user_email: 'cliente@example.com' })];
+
+    const result = await sendAuroraD1Followups();
+
+    expect(result).toMatchObject({ success: true, sent: 1, errors: 0 });
+    const selectionSql = databaseService.all.mock.calls.find(([sql]) => String(sql).includes('followup_d1_sent_at'))[0];
+    expect(selectionSql).toContain("r.status IN ('confirmed', 'completed')");
+    expect(selectionSql).toContain('r.followup_d1_sent_at IS NULL');
+    expect(processAutomationBatch).toHaveBeenCalledWith(expect.objectContaining({
+      entityId: 'claim-d1', automationKey: 'aurora_d1', legacyColumn: 'followup_d1_sent_at',
+    }));
+  });
+
+  test('Aurora usa email cliente válido sin CC/BCC y omite email inválido', async () => {
+    auroraD1Rows = [auroraReservation({ id: 'valid-email', user_email: 'cliente@example.com' })];
+    await sendAuroraD1Followups();
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'cliente@example.com', agent: 'aurora' }));
+    expect(sendEmail.mock.calls[0][0]).not.toHaveProperty('cc');
+    expect(sendEmail.mock.calls[0][0]).not.toHaveProperty('bcc');
+
+    jest.clearAllMocks();
+    setupDatabaseMocks();
+    databaseService.run.mockResolvedValue({ rowCount: 1 });
+    auroraD1Rows = [auroraReservation({ id: 'invalid-email', user_email: 'correo-invalido' })];
+    await sendAuroraD1Followups();
+    expect(enviarWhatsApp).toHaveBeenCalledTimes(1);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('Aurora D+3 comunica facts canónicos sin descuentos ni afirmaciones inventadas', async () => {
+    auroraD3Rows = [auroraReservation({ id: 'canonical-d3', total_price: 0 })];
+    languageByPhone.set(clientPhone, 'es');
+    await sendAuroraD3Followups();
+    const message = lastWhatsAppMessage();
+    expect(message).toContain('Lunes a Viernes 8:30 AM – 6:00 PM');
+    expect(message).toContain('+593 99 483 7117');
+    expect(message).not.toMatch(/15% OFF|40%|WiFi premium|sitio web/i);
   });
 
   test('Aluna D+1 y D+3 usan idiomas admitidos sin recepción, anfitrión, visita guiada ni show-around', async () => {

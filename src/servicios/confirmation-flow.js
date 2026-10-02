@@ -112,7 +112,9 @@ export function generateConfirmationMessage(reservationData, userProfile) {
     guestCount = 0
   } = reservationData;
   
-  const userName = userProfile.name ? `, ${userProfile.name}` : '';
+  const isThirdParty = reservationData.reservationFor === 'other';
+  const displayName = isThirdParty ? reservationData.userName : userProfile.name;
+  const userName = displayName ? `, ${displayName}` : '';
   const serviceName = serviceType === 'hotDesk' ? 'Hot Desk' : 
                      serviceType === 'meetingRoom' ? 'Sala de Reuniones' : 
                      serviceType === 'privateOffice' ? 'Oficina Privada' : serviceType;
@@ -128,9 +130,14 @@ export function generateConfirmationMessage(reservationData, userProfile) {
   
   // Información de acompañantes
   const totalPeople = 1 + guestCount;
-  const peopleInfo = guestCount > 0 ? 
-    `👥 *Personas:* ${totalPeople} (tú + ${guestCount} acompañante${guestCount > 1 ? 's' : ''})` : 
-    `👥 *Personas:* Solo tú`;
+  const peopleInfo = isThirdParty
+    ? `👥 *Personas:* ${totalPeople} (${reservationData.userName}${guestCount > 0 ? ` + ${guestCount} acompañante${guestCount > 1 ? 's' : ''}` : ''})`
+    : guestCount > 0
+      ? `👥 *Personas:* ${totalPeople} (tú + ${guestCount} acompañante${guestCount > 1 ? 's' : ''})`
+      : `👥 *Personas:* Solo tú`;
+  const beneficiaryInfo = isThirdParty
+    ? `👤 *Beneficiario:* ${reservationData.userName}\n📱 *Celular:* ${reservationData.userId}\n📧 *Email:* ${reservationData.email}`
+    : '';
   
   if (isActuallyFree) {
     return `Perfecto${userName}! 👍
@@ -140,6 +147,7 @@ export function generateConfirmationMessage(reservationData, userProfile) {
 📅 ${formattedDate}
 ⏰ ${startTime} - ${endTime} 
 🏢 ${serviceName}
+${beneficiaryInfo}
 ${peopleInfo}
 ⏱️ ${durationHours} hora${durationHours > 1 ? 's' : ''}
 💰 Sin costo (primera visita)
@@ -156,6 +164,7 @@ Responde *SI* para confirmar o *NO* si prefieres otro horario.`;
 📅 *Fecha:* ${formattedDate}
 ⏰ *Horario:* ${startTime} - ${endTime}
 🏢 *Espacio:* ${serviceName}
+${beneficiaryInfo}
 ${peopleInfo}
 ⏱️ *Duración:* ${durationHours} hora${durationHours > 1 ? 's' : ''}
 💰 *Total:* $${totalPrice} USD
@@ -331,7 +340,11 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
       }
     });
     
-    const userName = userProfile.name ? `, ${userProfile.name}` : '';
+    const reservationPhone = pendingReservation.userId || userProfile.userId;
+    const reservationName = pendingReservation.userName || userProfile.name || 'Cliente';
+    const reservationEmail = pendingReservation.email || userProfile.email || null;
+    const isThirdPartyBooking = pendingReservation.reservationFor === 'other';
+    const userName = reservationName ? `, ${reservationName}` : '';
     let reservationRecord = null;
     
     // 🚨 CRÍTICO: Asegurar que pendingReservation tenga el userId (usado como user_phone)
@@ -348,6 +361,17 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
     // Agregar userName si existe
     if (!pendingReservation.userName && userProfile.name) {
       pendingReservation.userName = userProfile.name;
+    }
+
+    if (isThirdPartyBooking) {
+      await databaseService.run(
+        `INSERT INTO users (phone_number, name, email, first_visit, free_trial_used, last_message_at)
+         VALUES ($1, $2, $3, TRUE, TRUE, NOW())
+         ON CONFLICT (phone_number) DO UPDATE SET
+           name = COALESCE(EXCLUDED.name, users.name),
+           email = COALESCE(EXCLUDED.email, users.email)`,
+        [reservationPhone, reservationName, reservationEmail]
+      );
     }
     
     // 🧹 PASO 0: LIMPIAR RESERVAS CONFLICTIVAS DEL MISMO USUARIO PRIMERO
@@ -519,7 +543,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
           `create-reservation-2-${secondReservationRecord.id}`,
           () => createCalendarEvent({
             userName: pendingReservation.userName,
-            email: userProfile.email || 'noemail@coworkia.com',
+            email: reservationEmail || 'noemail@coworkia.com',
             date: pendingReservation.date,
             startTime: secondStartTime,
             endTime: secondEndTime,
@@ -545,7 +569,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
     };
     
     // 📧 Guardar email del formulario en users.email si está presente
-    if (pendingReservation.email && pendingReservation.email !== userProfile.email) {
+    if (!isThirdPartyBooking && pendingReservation.email && pendingReservation.email !== userProfile.email) {
       console.log('[Confirmation] 📧 Guardando email del formulario en BD:', pendingReservation.email);
       userUpdates.email = pendingReservation.email;
       userProfile.email = pendingReservation.email; // Actualizar también en memoria para notificaciones
@@ -564,7 +588,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
       userUpdates.freeTrialDate = new Date().toISOString(); // ← camelCase
     }
     
-    await updateUser(userProfile.userId, userUpdates);
+    await updateUser(reservationPhone, userUpdates);
     
     console.log('[Confirmation] ✅ Operaciones completadas exitosamente');
 
@@ -595,7 +619,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
         'create-reservation',
         () => createCalendarEvent({
           userName: pendingReservation.userName,
-          email: userProfile.email || 'noemail@coworkia.com',
+          email: reservationEmail || 'noemail@coworkia.com',
           date: confirmedDate,
           startTime: confirmedStart,
           endTime: confirmedEnd,
@@ -625,7 +649,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
     if (pendingReservation.wasFree) {
       if (process.env.DEBUG_MODE === 'true') {
         console.log('[Confirmation] 🔍 DEBUG: Reserva gratis detectada, enviando notificaciones INLINE');
-        console.log('[Confirmation] 🔍 DEBUG: Email usuario:', userProfile.email);
+        console.log('[Confirmation] 🔍 DEBUG: Email usuario:', reservationEmail);
         console.log('[Confirmation] 🔍 DEBUG: Datos reserva:', {
           date: confirmedDate,
           startTime: confirmedStart,
@@ -635,7 +659,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
         });
       }
       
-      let confirmationDeliveryLine = userProfile.email
+      let confirmationDeliveryLine = reservationEmail
         ? '📧 Te enviaré la confirmación por email en unos segundos.'
         : 'ℹ️ No tengo tu email registrado todavía para enviarte la confirmación.';
 
@@ -645,7 +669,7 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
       try {
         const wifiResult = await generateWifiCode({
           reservationId: reservationRecord.id,
-          userPhone: userProfile.userId,
+          userPhone: reservationPhone,
           durationHours: pendingReservation.durationHours || 2,
           validForDate: confirmedDate
         });
@@ -658,14 +682,14 @@ export async function processPositiveConfirmation(userProfile, pendingReservatio
         console.error('[Confirmation] ⚠️ No se pudo generar código WiFi (no bloquea):', wifiErr.message);
       }
 
-      if (userProfile.email) {
+      if (reservationEmail) {
         console.log('[Confirmation] 📧 Enviando notificaciones INLINE (email + calendar)...');
         
         try {
           // EJECUTAR INLINE con reintentos automáticos
           const notificationResults = await sendReservationNotifications({
-            email: userProfile.email,
-            userName: userProfile.name || 'Cliente',
+            email: reservationEmail,
+            userName: reservationName,
             date: confirmedDate,
             startTime: confirmedStart,
             endTime: confirmedEnd,
@@ -774,10 +798,10 @@ Tu reserva queda *pre-reservada* hasta confirmar el pago. ¡Gracias! 😊`,
       
       // Enviar notificaciones
       let notificationResults = null;
-      if (userProfile.email) {
+      if (reservationEmail) {
         notificationResults = await sendReservationNotifications({
-          email: userProfile.email,
-          userName: userProfile.name || 'Cliente',
+          email: reservationEmail,
+          userName: reservationName,
           date: confirmedDate,
           startTime: confirmedStart,
           endTime: confirmedEnd,
@@ -792,7 +816,7 @@ Tu reserva queda *pre-reservada* hasta confirmar el pago. ¡Gracias! 😊`,
 
       const confirmationDeliveryLine = notificationResults?.email?.success
         ? '📧 Te envié la confirmación por email.'
-        : userProfile.email
+        : reservationEmail
         ? '⚠️ La reserva quedó confirmada. El email falló; si quieres, te lo reenvío enseguida.'
         : 'ℹ️ No tengo tu email registrado todavía para enviarte la confirmación.';
       
@@ -861,12 +885,12 @@ Tu reserva queda *pre-reservada* hasta confirmar el pago. ¡Gracias! 😊`,
 
     // 📧 Enviar email de confirmación para reservas de pago (tarjeta / transferencia)
     let confirmationEmailLine = '';
-    if (userProfile.email) {
+    if (reservationEmail) {
       try {
-        console.log('[Confirmation] 📧 Enviando email de confirmación (pago pendiente) a:', userProfile.email);
+        console.log('[Confirmation] 📧 Enviando email de confirmación (pago pendiente) a:', reservationEmail);
         const notificationResults = await sendReservationNotifications({
-          email: userProfile.email,
-          userName: userProfile.name || 'Cliente',
+          email: reservationEmail,
+          userName: reservationName,
           date: confirmedDate,
           startTime: confirmedStart,
           endTime: confirmedEnd,

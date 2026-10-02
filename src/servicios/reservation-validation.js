@@ -3,17 +3,16 @@
  * Asegura que las reservas cumplan con todas las reglas de negocio
  */
 
+import { HOURS } from '../utils/coworkia-facts.js';
+
 // Configuración de horarios de negocio
 const BUSINESS_CONFIG = {
   // Horarios laborales (horario de Ecuador UTC-5)
   // IMPORTANTE: Debe coincidir con lo que Aurora comunica a los usuarios
-  weekdayStart: '07:00',  // 7:00 AM como dice Aurora
-  weekdayEnd: '19:00',    // 7:00 PM - CIERRE oficial
-  weekendStart: '08:00',  // Sábados desde 8 AM
-  weekendEnd: '18:00',    // Hasta 6 PM
-  
-  // Grace period: "siempre les esperaremos unos minutos" — Diego
-  graceMinutes: 30,       // 30 min después de cierre (reserva puede TERMINAR hasta 7:30 PM)
+  weekdayStart: HOURS.open24,
+  weekdayEnd: HOURS.close24,
+  weekendStart: null,
+  weekendEnd: null,
   
   // Restricciones de duración
   minDurationHours: 2,    // Mínimo 2 horas (no existe tarifa de 1 hora)
@@ -36,9 +35,17 @@ export function validateBusinessHours(date, startTime, endTime) {
   // Usar date string con hora para evitar timezone issues
   const dayOfWeek = new Date(date + 'T12:00:00').getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  
-  const businessStart = isWeekend ? BUSINESS_CONFIG.weekendStart : BUSINESS_CONFIG.weekdayStart;
-  const businessEnd = isWeekend ? BUSINESS_CONFIG.weekendEnd : BUSINESS_CONFIG.weekdayEnd;
+
+  if (isWeekend) {
+    return {
+      valid: false,
+      reason: `Fuera del horario laboral (${HOURS.display})`,
+      suggestion: `Horario disponible: ${HOURS.display}`
+    };
+  }
+
+  const businessStart = BUSINESS_CONFIG.weekdayStart;
+  const businessEnd = BUSINESS_CONFIG.weekdayEnd;
   
   // Convertir a minutos para comparación fácil
   const toMinutes = (time) => {
@@ -50,17 +57,11 @@ export function validateBusinessHours(date, startTime, endTime) {
   const endMinutes = toMinutes(endTime);
   const businessStartMinutes = toMinutes(businessStart);
   const businessEndMinutes = toMinutes(businessEnd);
-  // Grace period: reserva puede TERMINAR hasta graceMinutes después del cierre
-  const graceEndMinutes = businessEndMinutes + (BUSINESS_CONFIG.graceMinutes || 0);
-  
-  if (startMinutes < businessStartMinutes || endMinutes > graceEndMinutes) {
-    const graceEndTime = `${Math.floor(graceEndMinutes / 60).toString().padStart(2, '0')}:${(graceEndMinutes % 60).toString().padStart(2, '0')}`;
+  if (startMinutes < businessStartMinutes || endMinutes > businessEndMinutes) {
     return {
       valid: false,
-      reason: isWeekend 
-        ? `Fuera del horario laboral de fin de semana (${businessStart} - ${businessEnd})`
-        : `Fuera del horario laboral (${businessStart} - ${businessEnd})`,
-      suggestion: `Horario disponible: ${businessStart} - ${graceEndTime} (cierre oficial ${businessEnd}, cortesía +${BUSINESS_CONFIG.graceMinutes}min)`
+      reason: `Fuera del horario laboral (${HOURS.display})`,
+      suggestion: `Horario disponible: ${HOURS.display}`
     };
   }
   
@@ -215,8 +216,8 @@ export function validateReservation(date, startTime, endTime, durationHours) {
  */
 export function suggestAlternativeSlots(date, requestedStart, durationHours, existingReservations = []) {
   const alternatives = [];
-  const businessStart = '08:00';
-  const businessEnd = '20:00';
+  const businessStart = HOURS.open24;
+  const businessEnd = HOURS.close24;
   
   // Convertir hora solicitada a minutos para calcular proximidad
   const [reqH, reqM] = (requestedStart || '12:00').split(':').map(Number);

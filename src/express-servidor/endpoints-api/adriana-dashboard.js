@@ -39,8 +39,8 @@ router.get('/leads', async (req, res) => {
     const leads = await databaseService.all(query, params);
     return res.json({ ok: true, data: leads || [] });
   } catch (err) {
-    console.error('[ADRIANA-API] Error leads:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error('[ADRIANA-DASHBOARD] Error loading leads:', err);
+    return res.status(500).json({ ok: false, error: 'No se pudieron cargar los leads de Adriana' });
   }
 });
 
@@ -69,8 +69,8 @@ router.get('/leads-stats', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[ADRIANA-API] Error stats:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error('[ADRIANA-DASHBOARD] Error loading stats:', err);
+    return res.status(500).json({ ok: false, error: 'No se pudieron cargar las métricas de Adriana' });
   }
 });
 

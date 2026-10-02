@@ -287,6 +287,11 @@ async function startServer() {
     console.log('🗄️ Inicializando base de datos PostgreSQL...');
     await databaseService.initialize();
     console.log('✅ Base de datos PostgreSQL inicializada correctamente');
+
+    // Las automatizaciones dependen del esquema migrado (incluida su outbox).
+    console.log('🗃️ Ejecutando migraciones de base de datos...');
+    await runMigrations();
+    console.log('✅ Migraciones completadas');
     
     // Inicializar observabilidad
     console.log('👁️ Inicializando sistema de observabilidad...');
@@ -317,11 +322,6 @@ async function startServer() {
     console.log('🏡 Iniciando follow-ups automatizados de Paula...');
     startPaulaFollowupCronJobs();
     console.log('✅ Paula follow-ups activos (24h: 10am, 3d: 10am, reminder: 10am Ecuador)');
-
-    // Ejecutar migraciones de base de datos
-    console.log('🗃️ Ejecutando migraciones de base de datos...');
-    await runMigrations();
-    console.log('✅ Migraciones completadas');
 
     startHealthMonitor();
     console.log('✅ Health monitor activo (OpenAI + DB, checks cada 5 min)');

@@ -218,6 +218,7 @@ export async function loadProfile(userId) {
       preferredLanguage: user.preferred_language || 'es', // 🌍 Idioma preferido
       dataConsentAt: user.data_consent_at || null, // 🔐 LOPDP consentimiento
       dataConsentSource: user.data_consent_source || null,
+      dataConsentRequestedAt: user.data_consent_requested_at || null,
       reservationHistory,
       upcomingReservations, // 🆕 Reservas confirmadas futuras
       pendingConfirmation,

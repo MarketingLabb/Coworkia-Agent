@@ -8,6 +8,15 @@
 
 import { jest } from '@jest/globals';
 
+const processAutomationBatch = jest.fn(async ({ deliveries, dispatch }) => {
+  for (const delivery of deliveries || []) {
+    const result = await dispatch({ ...delivery, payload: delivery.payload });
+    const success = delivery.channel === 'whatsapp' ? result?.ok === true : result?.success === true;
+    if (!success) return { complete: false, failed: true, attempted: true };
+  }
+  return { complete: true, failed: false, attempted: true };
+});
+
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 jest.unstable_mockModule('../../src/express-servidor/endpoints-api/wassenger.js', () => ({
@@ -27,6 +36,11 @@ jest.unstable_mockModule('../../src/database/auroraRepository.js', () => ({
 
 jest.unstable_mockModule('../../src/perfiles-interacciones/memoria-sqlite.js', () => ({
   getUserPreferredLanguage: jest.fn().mockResolvedValue('es'),
+}));
+
+jest.unstable_mockModule('../../src/servicios/automation-delivery-service.js', () => ({
+  processAutomationBatch,
+  findDueAutomationBatches: jest.fn().mockResolvedValue([]),
 }));
 
 // ─── Import SUT after mocks ──────────────────────────────────────────────────
@@ -97,12 +111,17 @@ describe('⏰ sendOneHourFollowups (cron)', () => {
     expect(enviarWhatsApp).toHaveBeenCalledWith(mockReservationHotDesk.user_phone, expect.any(String));
   });
 
-  test('✅ Marca como enviado tras el envío WA', async () => {
+  test('✅ Entrega mediante outbox y finaliza solo tras el proveedor', async () => {
     findReservationsForOneHourFollowup.mockResolvedValue([mockReservationHotDesk]);
 
     await sendOneHourFollowups();
 
-    expect(markFollowup1hSent).toHaveBeenCalledWith(mockReservationHotDesk.id);
+    expect(processAutomationBatch).toHaveBeenCalledWith(expect.objectContaining({
+      entityId: mockReservationHotDesk.id,
+      automationKey: 'aurora_followup_1h',
+      legacyColumn: 'followup_1h_sent_at',
+    }));
+    expect(markFollowup1hSent).not.toHaveBeenCalled();
   });
 
   test('✅ Retorna sent=0 cuando no hay reservas pendientes', async () => {
@@ -123,8 +142,7 @@ describe('⏰ sendOneHourFollowups (cron)', () => {
 
     expect(result.sent).toBe(2);
     expect(enviarWhatsApp).toHaveBeenCalledTimes(2);
-    expect(markFollowup1hSent).toHaveBeenCalledWith(mockReservationHotDesk.id);
-    expect(markFollowup1hSent).toHaveBeenCalledWith(r2.id);
+    expect(processAutomationBatch).toHaveBeenCalledTimes(2);
   });
 
   test('✅ Continúa con las demás reservas si una falla', async () => {
@@ -178,12 +196,17 @@ describe('🔁 sendRebookingReminders (cron D+7)', () => {
     expect(enviarWhatsApp).toHaveBeenCalledWith(mockReservationSala.user_phone, expect.any(String));
   });
 
-  test('✅ Marca rebook_reminder como enviado', async () => {
+  test('✅ Rebooking usa outbox persistente', async () => {
     findReservationsForRebookingReminder.mockResolvedValue([mockReservationSala]);
 
     await sendRebookingReminders();
 
-    expect(markRebookReminderSent).toHaveBeenCalledWith(mockReservationSala.id);
+    expect(processAutomationBatch).toHaveBeenCalledWith(expect.objectContaining({
+      entityId: mockReservationSala.id,
+      automationKey: 'aurora_rebook_d7',
+      legacyColumn: 'rebook_reminder_sent_at',
+    }));
+    expect(markRebookReminderSent).not.toHaveBeenCalled();
   });
 
   test('✅ Retorna sent=0 cuando no hay reservas para D+7', async () => {

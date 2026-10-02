@@ -13,6 +13,36 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const DEFAULT_FROM_EMAIL = EMAIL_USER || 'secretaria.coworkia@gmail.com';
+const FORBIDDEN_AUTOMATIC_COPY_DOMAIN = '@diegovillota.com';
+
+function isForbiddenAutomaticCopy(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized.endsWith(FORBIDDEN_AUTOMATIC_COPY_DOMAIN)
+    || normalized.endsWith(`${FORBIDDEN_AUTOMATIC_COPY_DOMAIN}>`);
+}
+
+export function sanitizeAutomaticCopies(recipients) {
+  if (!recipients) return undefined;
+  if (Array.isArray(recipients)) {
+    const sanitized = recipients.flatMap(value => {
+      const item = sanitizeAutomaticCopies(value);
+      return Array.isArray(item) ? item : (item ? [item] : []);
+    });
+    return sanitized.length ? sanitized : undefined;
+  }
+  if (typeof recipients === 'object') {
+    return isForbiddenAutomaticCopy(recipients.address)
+      ? undefined
+      : recipients;
+  }
+
+  const sanitized = String(recipients)
+    .split(/[;,]/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter(value => !isForbiddenAutomaticCopy(value));
+  return sanitized.length ? sanitized.join(', ') : undefined;
+}
 
 /**
  * 📧 Devuelve el CC del admin coworkia (centralizado).
@@ -21,7 +51,7 @@ const DEFAULT_FROM_EMAIL = EMAIL_USER || 'secretaria.coworkia@gmail.com';
  */
 export function getAdminCC() {
   const cc = (process.env.COWORKIA_ADMIN_EMAIL || 'coworkia.ec@gmail.com').trim();
-  return cc || '';
+  return sanitizeAutomaticCopies(cc) || '';
 }
 
 // Nombres de remitente personalizados por agente
@@ -535,8 +565,8 @@ export async function sendEmail({ to, subject, html, text, from, cc, bcc, attach
     const mailOptions = {
       from: fromAddress,
       to: to,
-      cc,
-      bcc,
+      cc: sanitizeAutomaticCopies(cc),
+      bcc: sanitizeAutomaticCopies(bcc),
       subject: subject,
       html: processedHtml,
       text: text || (html ? htmlToPlainText(html) : undefined),

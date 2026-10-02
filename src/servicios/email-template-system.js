@@ -11,7 +11,7 @@
 
 import { ecosistemaTable } from './email-ecosystem.js';
 import { COWORKIA_ADDRESS_FULL } from '../utils/constants.js';
-import { CONTACT, WIFI } from '../utils/coworkia-facts.js';
+import { CONTACT, HOURS, LOCATION, WIFI } from '../utils/coworkia-facts.js';
 
 function escapeHtml(value = '') {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -594,10 +594,10 @@ export function buildAuroraD3HTML({ nombre, servicio, wasFree = false }, { xiaom
   const firstName = (rawFirst && rawFirst !== '.' && rawFirst.length > 1) ? rawFirst : '';
 
   const fomoMsg = wasFree
-    ? 'Tu primera visita gratis fue genial, pero hay mucho más por descubrir. Esta semana tenemos <strong>15% OFF</strong> en tu siguiente reserva.'
+    ? 'Esperamos que hayas disfrutado tu primera visita. Aurora puede ayudarte a reservar nuevamente.'
     : servicio?.toLowerCase().includes('sala')
       ? '¿Tienes otra reunión pendiente? Salas disponibles esta semana con <strong>horarios flexibles</strong>.'
-      : '¿Sabías que con una <strong>Membresía Coworkia</strong> ahorras hasta un 40%? Pregunta por nuestros planes.';
+      : 'Si vienes con frecuencia, pregunta por nuestros planes de <strong>Membresía Coworkia</strong>.';
 
   const LOGO_URL = 'https://coworkia-agent-e97d15dac56f.herokuapp.com/images/logos/coworkia.svg';
 
@@ -628,22 +628,16 @@ export function buildAuroraD3HTML({ nombre, servicio, wasFree = false }, { xiaom
       ${fomoMsg}
     </p>
 
-    <!-- Social proof -->
+    <!-- Información canónica de Coworkia -->
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${b.primaryColor};border-radius:8px;padding:18px 20px;margin-bottom:24px;">
-      <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📊 Esta semana en Coworkia</div>
+      <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Coworkia Business Center</div>
       <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">✅ Profesionales que trabajaron aquí</td><td style="padding:5px 0;font-size:14px;color:#1e293b;font-weight:600;text-align:right;">+40</td></tr>
-        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">✅ Reuniones exitosas</td><td style="padding:5px 0;font-size:14px;color:#1e293b;font-weight:600;text-align:right;">+10</td></tr>
-        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">✅ WiFi premium · Café ilimitado</td><td style="padding:5px 0;font-size:14px;color:#1e293b;font-weight:600;text-align:right;">∞</td></tr>
+        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">✅ ${WIFI.display}</td></tr>
+        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">🕐 ${HOURS.display}</td></tr>
+        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">📍 ${LOCATION.addressFull}</td></tr>
+        <tr><td style="padding:5px 0;font-size:14px;color:#374151;">📱 ${CONTACT.phoneDisplay}</td></tr>
       </table>
     </div>
-
-    ${wasFree ? `
-    <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:2px solid ${b.primaryColor};border-radius:10px;padding:20px 24px;text-align:center;margin-bottom:24px;">
-      <div style="font-size:13px;color:#065f46;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🎁 Oferta Primera Vez</div>
-      <div style="font-size:28px;font-weight:800;color:#047857;margin:8px 0;">15% OFF</div>
-      <div style="font-size:13px;color:#6b7280;">En tu próxima visita esta semana</div>
-    </div>` : ''}
 
     <div style="text-align:center;margin:28px 0;">
       <a href="https://wa.me/${process.env.BOT_PHONE || '593994837117'}?text=%40aurora%0AHola%20Aurora%2C%20quiero%20reservar%20para%20esta%20semana"
