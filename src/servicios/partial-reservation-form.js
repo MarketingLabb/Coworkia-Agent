@@ -124,7 +124,13 @@ export function extractAdminBeneficiaryData(message, currentForm = {}, expectedF
     updates.reservationFor = 'other';
   }
 
-  if ((updates.reservationFor || currentForm.reservationFor) === 'other') {
+  const target = updates.reservationFor || currentForm.reservationFor;
+  // Reserva propia: también se leen nombre/correo cuando el perfil del admin está
+  // incompleto. Antes solo se leían para terceros → Aurora repetía la pregunta en loop.
+  // El nombre propio solo se toma si Aurora lo está pidiendo (expectedField).
+  const selfAnswering = target === 'self';
+
+  if (target === 'other' || selfAnswering) {
     const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
     if (emailMatch) updates.beneficiaryEmail = emailMatch[1].toLowerCase();
 
@@ -137,7 +143,15 @@ export function extractAdminBeneficiaryData(message, currentForm = {}, expectedF
     const namedMatch = text.match(/(?:nombre(?: completo)?(?: es)?|se llama)\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4})(?=\s*[,;]|\s+(?:tel[eé]fono|celular|correo|email)\b|$)/i);
     const isNameOnly = !emailMatch && !phoneMatch && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}$/.test(text);
     const simpleName = expectedField === 'beneficiaryName' || (!currentForm.beneficiaryName && isNameOnly);
-    if (namedThirdParty || namedMatch || (simpleName && isNameOnly)) {
+    // "para mi diego villota" → quitar el prefijo de destinatario antes de validar el nombre
+    const strippedSelf = selfAnswering
+      ? text.replace(/^\s*(?:es\s+)?para\s+m[ií]\s*[,:-]?\s*/i, '').trim()
+      : text;
+    const selfNameOnly = selfAnswering && expectedField === 'beneficiaryName'
+      && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,4}$/.test(strippedSelf);
+    if (selfNameOnly) {
+      updates.beneficiaryName = strippedSelf;
+    } else if (!selfAnswering && (namedThirdParty || namedMatch || (simpleName && isNameOnly))) {
       updates.beneficiaryName = (namedThirdParty || namedMatch?.[1] || text).trim();
     }
   }
@@ -457,11 +471,17 @@ export class PartialReservationForm {
       case 'reservationFor':
         return '¿La reserva es para ti o para otra persona?';
       case 'beneficiaryName':
-        return '¿Cuál es el nombre completo de la persona que usará la reserva?';
+        return this.reservationFor === 'self'
+          ? '¿Me confirmas tu nombre completo (nombre y apellido) para la reserva?'
+          : '¿Cuál es el nombre completo de la persona que usará la reserva?';
       case 'beneficiaryPhone':
-        return '¿Cuál es el número de celular de la persona beneficiaria?';
+        return this.reservationFor === 'self'
+          ? '¿Me confirmas tu número de celular?'
+          : '¿Cuál es el número de celular de la persona beneficiaria?';
       case 'beneficiaryEmail':
-        return '¿Cuál es el correo electrónico de la persona beneficiaria?';
+        return this.reservationFor === 'self'
+          ? '¿A qué correo te envío la confirmación? 📧'
+          : '¿Cuál es el correo electrónico de la persona beneficiaria?';
       case 'spaceType':
         return `¿Qué espacio necesitas${userName}? Tenemos:\n\n📍 Hot Desk (individual, $10/2h)\n🏢 Sala de Reuniones (3-4 personas, $29/2h)`;
       

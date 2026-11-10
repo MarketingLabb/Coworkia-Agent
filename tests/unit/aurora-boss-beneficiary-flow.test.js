@@ -232,3 +232,31 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
     expect(result.form.beneficiaryName).toBeNull();
   });
 });
+
+describe('Aurora BOSS — reserva propia con perfil incompleto (loop 10-nov-2026)', () => {
+  const INCOMPLETE_PROFILE = { userId: ADMIN, name: 'Diego', email: null, freeTrialUsed: true };
+
+  test('"para mi" + nombre completo avanza y no repite la pregunta', async () => {
+    const stale = { userId: ADMIN, isAdminBooking: true, reservationFor: 'other' };
+    let r = await processMessageWithForm(ADMIN, 'para mi', INCOMPLETE_PROFILE, stale);
+    expect(r.form.reservationFor).toBe('self');
+    expect(r.nextQuestion).toContain('tu nombre completo');
+
+    r = await processMessageWithForm(ADMIN, 'diego villota', INCOMPLETE_PROFILE, r.form.toJSON());
+    expect(r.form.beneficiaryName).toBe('diego villota');
+    expect(r.nextQuestion || '').not.toContain('nombre completo');
+  });
+
+  test('"para mi diego villota" en un solo mensaje captura el nombre', async () => {
+    const waiting = { userId: ADMIN, isAdminBooking: true, reservationFor: 'self' };
+    const r = await processMessageWithForm(ADMIN, 'para mi diego villota', INCOMPLETE_PROFILE, waiting);
+    expect(r.form.beneficiaryName).toBe('diego villota');
+  });
+
+  test('con nombre listo y sin email, acepta el correo para reserva propia', async () => {
+    const waiting = { userId: ADMIN, isAdminBooking: true, reservationFor: 'self', beneficiaryName: 'Diego Villota' };
+    const r = await processMessageWithForm(ADMIN, 'yo@diegovillota.com', INCOMPLETE_PROFILE, waiting);
+    expect(r.form.beneficiaryEmail).toBe('yo@diegovillota.com');
+    expect(r.form.email).toBe('yo@diegovillota.com');
+  });
+});
