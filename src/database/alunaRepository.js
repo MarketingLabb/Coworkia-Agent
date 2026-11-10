@@ -367,6 +367,10 @@ export async function findProspectsFor24hFollowUp() {
       WHERE followup_24h_sent_at IS NULL
         AND converted_at IS NULL
         AND interest_at <= NOW() - INTERVAL '24 hours'
+        -- Ventana: solo prospectos de las últimas 48h. Sin este tope, los que
+        -- quedaron atascados (p.ej. por errores 400 de Wassenger) recibían un
+        -- "Ayer conversamos..." semanas después al destrabarse el envío.
+        AND interest_at >= NOW() - INTERVAL '48 hours'
       ORDER BY interest_at ASC
       LIMIT 50`,
     []
@@ -386,6 +390,10 @@ export async function findProspectsFor3dFollowUp() {
         AND followup_3d_sent_at IS NULL
         AND converted_at IS NULL
         AND followup_24h_sent_at <= NOW() - INTERVAL '72 hours'
+        AND followup_24h_sent_at >= NOW() - INTERVAL '96 hours'
+        -- El flujo normal es interés + 24h + 72h ≈ 4 días; si el interés es
+        -- más viejo, el 24h salió tarde (backlog) y no se insiste.
+        AND interest_at >= NOW() - INTERVAL '6 days'
       ORDER BY followup_24h_sent_at ASC
       LIMIT 50`,
     []
@@ -650,6 +658,8 @@ export async function findMembersForRenewalReminder1() {
      ) mp ON mp.membership_lead_id = ml.id
      WHERE ml.status = 'accepted'
        AND mp.transaction_date <= CURRENT_DATE - INTERVAL '25 days'
+       -- Ventana de 5 días: no avisar "vence pronto" a membresías vencidas hace meses
+       AND mp.transaction_date >= CURRENT_DATE - INTERVAL '29 days'
        AND (ml.renewal_reminder_1_sent_at IS NULL
             OR ml.renewal_reminder_1_sent_at < mp.transaction_date::timestamp)
      ORDER BY mp.transaction_date ASC
@@ -681,6 +691,7 @@ export async function findMembersForRenewalReminder2() {
      ) mp ON mp.membership_lead_id = ml.id
      WHERE ml.status = 'accepted'
        AND mp.transaction_date <= CURRENT_DATE - INTERVAL '30 days'
+       AND mp.transaction_date >= CURRENT_DATE - INTERVAL '33 days'
        AND (ml.renewal_reminder_2_sent_at IS NULL
             OR ml.renewal_reminder_2_sent_at < mp.transaction_date::timestamp)
      ORDER BY mp.transaction_date ASC
