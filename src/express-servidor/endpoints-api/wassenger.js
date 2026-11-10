@@ -68,6 +68,7 @@ import { isAxelBossQuoteCommand, parseAxelDemoQuoteData, sendAxelDemoCotizacion 
 import { isEnzoBossQuoteCommand, sendEnzoCotizacion } from '../../servicios/enzo-cotizacion-email.js';
 // enzo-consulting-flow: imported dynamically when needed (#PROCESS_FORM or active state)
 import { isPaulaBossQuoteCommand, parsePaulaQuoteData, sendPaulaCotizacion } from '../../servicios/paula-cotizacion-email.js';
+import { detectEmailChange, isPaulaEmailRequest, findPropertyNumber, extractEmail, paulaCopy, buildQuoteCommand } from '../../servicios/paula-client-requests.js';
 import { saveBossQuote, generateBossQuoteCode } from '../../database/bossQuotesRepository.js';
 import { isAdrianaBossQuoteCommand, sendAdrianaCotizacion } from '../../servicios/adriana-cotizacion-email.js';
 import { analyzeInsuranceDocument, detectDocumentType, extractVehicleData, DOCUMENT_TYPES } from '../../servicios/insurance-document-analysis.js';
@@ -2196,6 +2197,68 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
       }
     }
     // ══════════════════════════════════════════════════════════════════════
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ✉️ CAMBIO DE EMAIL explícito ("change my email to x@y.com")
+    // Antes el LLM respondía "contacta a soporte" y no guardaba nada.
+    // ══════════════════════════════════════════════════════════════════════
+    // Aurora queda fuera: su formulario de reserva ya maneja el email.
+    if (processedText && profile.activeAgent !== 'AURORA') {
+      const newEmail = detectEmailChange(processedText);
+      if (newEmail && newEmail !== String(profile.email || '').toLowerCase()) {
+        profile.email = newEmail;
+        await saveProfile(userId, profile);
+        const reply = paulaCopy(profile.preferredLanguage).emailUpdated(newEmail);
+        await enviarWhatsApp(userId, reply);
+        await saveConversationMessage(userId, { role: 'assistant', content: reply, agent: profile.activeAgent || 'AURORA' });
+        console.log(`[EMAIL-CHANGE] ✉️ ${userId} → ${newEmail}`);
+        return;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🏡 PAULA — cliente pide la cotización por correo ("email me the quotation")
+    // Antes el LLM prometía el envío pero nada lo ejecutaba.
+    // ══════════════════════════════════════════════════════════════════════
+    if (processedText && profile.activeAgent === 'PAULA' && isPaulaEmailRequest(processedText)) {
+      const copy = paulaCopy(profile.preferredLanguage);
+      const email = extractEmail(processedText) || profile.email || null;
+      if (!email) {
+        await enviarWhatsApp(userId, copy.askEmail);
+        await saveConversationMessage(userId, { role: 'assistant', content: copy.askEmail, agent: 'PAULA' });
+        return;
+      }
+      const recentTexts = [processedText, ...[...conversationHistory].reverse().flatMap(h => [h.output, h.input])];
+      const propertyNumber = findPropertyNumber(recentTexts);
+      const clientName = profile.name || profile.whatsappDisplayName || 'Cliente';
+      try {
+        await enviarWhatsApp(userId, copy.sending(email));
+        const quoteCode = await generateBossQuoteCode('PAULA');
+        const result = await sendPaulaCotizacion(buildQuoteCommand({ propertyNumber, name: clientName, email }), { quoteCode });
+        await saveBossQuote({
+          agent: 'PAULA',
+          clientName: result.nombre || clientName,
+          clientEmail: email,
+          clientPhone: normalizePhoneEC(userId) || null,
+          serviceInfo: result.propiedad || null,
+          amountMin: null,
+          amountMax: null,
+          quoteCode,
+          emailSent: result.success,
+        }).catch(e => console.warn('[PAULA-EMAIL] ⚠️ saveBossQuote:', e.message));
+        const reply = result.success ? copy.sent(result.propiedad, email) : copy.failed;
+        if (!result.success) {
+          console.error('[PAULA-EMAIL] ❌ Envío falló:', result.error);
+        }
+        await enviarWhatsApp(userId, reply);
+        await saveConversationMessage(userId, { role: 'assistant', content: reply, agent: 'PAULA' });
+        console.log(`[PAULA-EMAIL] 📧 Cotización ${quoteCode} (${result.propiedad}) → ${email}: ${result.success ? 'OK' : 'FAIL'}`);
+      } catch (err) {
+        console.error('[PAULA-EMAIL] ❌ Error:', err.message);
+        await enviarWhatsApp(userId, copy.failed);
+      }
+      return;
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // 👔 BOSS COMMANDS: Aluna — proforma de membresía para cliente presencial
