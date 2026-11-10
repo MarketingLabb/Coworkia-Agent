@@ -19,6 +19,20 @@ const {
   processMessageWithForm,
 } = await import('../../src/servicios/partial-reservation-form.js');
 
+// Fechas relativas: Aurora rechaza horarios pasados y reservas a más de 90 días,
+// así que una fecha fija rompe los tests con el tiempo. Día hábil ~2 semanas adelante.
+function futureWeekday(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const blocked = ['12-24', '12-25', '12-31', '01-01'];
+  while ([0, 6].includes(d.getDay()) || blocked.includes(`${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)) {
+    d.setDate(d.getDate() + 1);
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const DAY = futureWeekday(14);
+const DAY_PREV = futureWeekday(10);
+
 const ADMIN = '+593994000001';
 const ADMIN_PROFILE = {
   userId: ADMIN,
@@ -55,9 +69,9 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
   });
 
   test.each([
-    'Reserva para Francisco Zapata el 2026-10-05 a las 4pm',
-    'La reserva es para mi amigo Francisco Zapata el 2026-10-05 a las 4pm',
-    'Reserva para mi colega Francisco Zapata el 2026-10-05 a las 4pm',
+    `Reserva para Francisco Zapata el ${DAY} a las 4pm`,
+    `La reserva es para mi amigo Francisco Zapata el ${DAY} a las 4pm`,
+    `Reserva para mi colega Francisco Zapata el ${DAY} a las 4pm`,
   ])('reconoce la variante natural “%s” como reserva para tercero', async (message) => {
     const result = await processMessageWithForm(ADMIN, message, ADMIN_PROFILE);
 
@@ -74,7 +88,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       isAdminBooking: true,
       reservationFor: 'other',
       spaceType: 'meetingRoom',
-      date: '2026-10-02',
+      date: DAY_PREV,
       time: '16:00',
     }, true);
 
@@ -90,7 +104,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
     expect(result.form).toMatchObject({
       beneficiaryName: expectedName,
       spaceType: 'meetingRoom',
-      date: '2026-10-02',
+      date: DAY_PREV,
       time: '16:00',
     });
     expect(result.updates).toMatchObject({ beneficiaryName: expectedName });
@@ -101,7 +115,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
   test('captura “reserva para mi amigo francisco zapata” sin repetir el nombre', async () => {
     const result = await processMessageWithForm(
       ADMIN,
-      'reserva para mi amigo francisco zapata el 2026-10-05 a las 4pm en una sala',
+      `reserva para mi amigo francisco zapata el ${DAY} a las 4pm en una sala`,
       ADMIN_PROFILE
     );
 
@@ -109,7 +123,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       reservationFor: 'other',
       beneficiaryName: 'francisco zapata',
       spaceType: 'meetingRoom',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
     });
     expect(result.nextQuestion).toContain('número de celular');
@@ -144,7 +158,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       beneficiaryEmail: 'francisco@example.com',
       email: 'francisco@example.com',
       spaceType: 'hotDesk',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
     }, true);
 
@@ -163,7 +177,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       beneficiaryEmail: 'diego@example.com',
       email: 'diego@example.com',
       spaceType: 'hotDesk',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
     });
     expect(result.form.beneficiaryName).not.toContain('Francisco');
@@ -172,7 +186,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
   test('reserva propia directa usa el perfil administrativo válido', async () => {
     const result = await processMessageWithForm(
       ADMIN,
-      'Aurora, reserva para mí una sala el 2026-10-05 a las 4pm',
+      `Aurora, reserva para mí una sala el ${DAY} a las 4pm`,
       ADMIN_PROFILE
     );
 
@@ -181,7 +195,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       beneficiaryName: 'Diego Villota',
       beneficiaryPhone: ADMIN,
       beneficiaryEmail: 'diego@example.com',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
       spaceType: 'meetingRoom',
     });
@@ -196,7 +210,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       beneficiaryEmail: 'diego@example.com',
       email: 'diego@example.com',
       spaceType: 'meetingRoom',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
     }, true);
 
@@ -214,7 +228,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
       beneficiaryEmail: null,
       email: null,
       spaceType: 'meetingRoom',
-      date: '2026-10-05',
+      date: DAY,
       time: '16:00',
     });
     expect(result.nextQuestion).toContain('número de celular');
@@ -223,7 +237,7 @@ describe('Aurora — máquina de beneficiario para reservas BOSS', () => {
   test('mantiene sin cambios el flujo de un cliente no administrativo', async () => {
     const result = await processMessageWithForm(
       '+593992222222',
-      'Reserva para mi amigo Francisco Zapata el 2026-10-05 a las 4pm',
+      `Reserva para mi amigo Francisco Zapata el ${DAY} a las 4pm`,
       { userId: '+593992222222', email: 'cliente@example.com', freeTrialUsed: true }
     );
 
