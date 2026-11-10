@@ -8,6 +8,7 @@
  */
 
 import express from 'express';
+import { normalizePhoneEC } from '../../utils/validators.js';
 import databaseService from '../../database/database.js';
 import { enviarWhatsApp } from './wassenger.js';
 import { sendEmail, AGENT_FROM_NAMES, DEFAULT_FROM_EMAIL, getAdminCC } from '../../servicios/email.js';
@@ -589,7 +590,7 @@ router.post('/prospect/:phone/sendwa', async (req, res) => {
     const waResponse = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
-      body: JSON.stringify({ phone, message, device: WASSENGER_DEVICE_ID })
+      body: JSON.stringify({ phone: normalizePhoneEC(phone) || phone, message, device: WASSENGER_DEVICE_ID })
     });
     if (!waResponse.ok) throw new Error(`Wassenger error: ${waResponse.status}`);
 

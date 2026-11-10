@@ -19,8 +19,10 @@ const RAM_WARN_MB        = 450;            // Alerta si RSS supera este umbral
 
 // ─── Estado interno ───────────────────────────────────────────────────────────
 const failCounters = { openai: 0, db: 0, wassenger: 0 };
+// Sesión WhatsApp: alertar una sola vez por corte y avisar al recuperarse
+let sessionDownSince = null;
 let intervalId = null;
-let _lastStatus = { checkedAt: null, openai: 'unknown', db: 'unknown', wassenger: 'unknown', ramMB: 0 };
+let _lastStatus = { checkedAt: null, openai: 'unknown', db: 'unknown', wassenger: 'unknown', whatsappSession: 'unknown', ramMB: 0 };
 
 // ─── Checks individuales ──────────────────────────────────────────────────────
 
@@ -121,6 +123,82 @@ async function checkWassenger() {
   }
 }
 
+/**
+ * 📱 Sesión WhatsApp del dispositivo Wassenger.
+ * checkWassenger() solo valida token/API: devuelve OK aunque la sesión de
+ * WhatsApp esté desconectada (incidente 10-nov-2026: Aurora sin responder).
+ * Aquí consultamos GET /v1/devices/{id} y miramos session.status.
+ *
+ * La alerta va por WhatsApp Y por email: si la sesión está caída, el
+ * WhatsApp de alerta tampoco sale, así que el email es el canal fiable.
+ */
+async function checkWhatsAppSession() {
+  const token = process.env.WASSENGER_TOKEN || process.env.WASSENGER_API_KEY;
+  const deviceId = process.env.WASSENGER_DEVICE_ID;
+  if (!token || !deviceId) return 'unknown';
+
+  let status;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`https://api.wassenger.com/v1/devices/${deviceId}`, {
+      headers: { Token: token },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return 'unknown'; // API caída/lenta la cubre checkWassenger()
+    const device = await res.json();
+    status = device?.session?.status || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+
+  if (status === 'online') {
+    if (sessionDownSince) {
+      const minutes = Math.round((Date.now() - sessionDownSince) / 60000);
+      sessionDownSince = null;
+      console.log(`[HEALTH] ✅ Sesión WhatsApp recuperada tras ~${minutes} min`);
+      await sendSessionAlert(
+        '✅ WhatsApp reconectado',
+        `La sesión de WhatsApp de Wassenger volvió a estar online tras ~${minutes} min. Los agentes ya reciben mensajes.`
+      );
+    }
+    return 'online';
+  }
+
+  if (!sessionDownSince) {
+    sessionDownSince = Date.now();
+    console.error(`[HEALTH] 🚨 Sesión WhatsApp NO online (status=${status})`);
+    await sendSessionAlert(
+      '🚨 WhatsApp desconectado — los agentes no reciben mensajes',
+      `La sesión de WhatsApp en Wassenger está en estado "${status}". ` +
+      `Mientras siga así, Aurora y los demás agentes no reciben mensajes de clientes.\n\n` +
+      `Acción: abrir el panel de Wassenger y reconectar el dispositivo (escanear QR si lo pide).`
+    );
+  }
+  return status;
+}
+
+async function sendSessionAlert(subject, body) {
+  // 1) WhatsApp (puede no salir si la sesión está caída)
+  notifyCriticalError(`Health Monitor — ${subject}`, new Error(body)).catch(() => {});
+  // 2) Email (canal fiable cuando WhatsApp está caído). Import dinámico para no cargar SMTP en tests.
+  try {
+    const { sendEmail, getAdminCC } = await import('./email.js');
+    const to = getAdminCC();
+    if (to) {
+      await sendEmail({
+        to,
+        subject: `[Coworkia Agent] ${subject}`,
+        text: body,
+        html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+      });
+    }
+  } catch (err) {
+    console.warn('[HEALTH] ⚠️ No se pudo enviar alerta por email:', err.message);
+  }
+}
+
 function checkRAM() {
   const rss = Math.round(process.memoryUsage().rss / 1024 / 1024);
   if (rss > RAM_WARN_MB) {
@@ -134,13 +212,13 @@ function checkRAM() {
 
 async function runChecks() {
   console.log('[HEALTH] 🔍 Ejecutando checks...');
-  const [openaiOk, dbOk, wassengerOk] = await Promise.all([
-    checkOpenAI(), checkDatabase(), checkWassenger()
+  const [openaiOk, dbOk, wassengerOk, whatsappSession] = await Promise.all([
+    checkOpenAI(), checkDatabase(), checkWassenger(), checkWhatsAppSession()
   ]);
   const ramMB = checkRAM();
   const status = openaiOk && dbOk ? '✅' : '⚠️';
-  console.log(`[HEALTH] ${status} OpenAI: ${openaiOk ? 'OK' : 'FAIL'} | DB: ${dbOk ? 'OK' : 'FAIL'} | Wassenger: ${wassengerOk ? 'OK' : 'FAIL'} | RAM: ${ramMB}MB`);
-  _lastStatus = { checkedAt: new Date().toISOString(), openai: openaiOk ? 'ok' : 'fail', db: dbOk ? 'ok' : 'fail', wassenger: wassengerOk ? 'ok' : 'fail', ramMB };
+  console.log(`[HEALTH] ${status} OpenAI: ${openaiOk ? 'OK' : 'FAIL'} | DB: ${dbOk ? 'OK' : 'FAIL'} | Wassenger: ${wassengerOk ? 'OK' : 'FAIL'} | WhatsApp: ${whatsappSession} | RAM: ${ramMB}MB`);
+  _lastStatus = { checkedAt: new Date().toISOString(), openai: openaiOk ? 'ok' : 'fail', db: dbOk ? 'ok' : 'fail', wassenger: wassengerOk ? 'ok' : 'fail', whatsappSession, ramMB };
 }
 
 // ─── API pública ──────────────────────────────────────────────────────────────
@@ -185,7 +263,8 @@ export function _resetCountersForTest() {
   failCounters.openai = 0;
   failCounters.db = 0;
   failCounters.wassenger = 0;
+  sessionDownSince = null;
 }
 
 /** @internal Solo para tests unitarios */
-export { checkOpenAI as _checkOpenAI };
+export { checkOpenAI as _checkOpenAI, checkWhatsAppSession as _checkWhatsAppSession };

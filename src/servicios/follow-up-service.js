@@ -3,6 +3,7 @@
 // + Follow-up específico de Aluna: 24h y 3 días post-consulta de membresías
 
 import databaseService from '../database/database.js';
+import { normalizePhoneEC } from '../utils/validators.js';
 import reservationRepository from '../database/reservationRepository.js';
 import {
   findProspectsFor24hFollowUp,
@@ -301,11 +302,18 @@ async function sendAlunaFollowUpMessage(prospect, message, followUpType) {
       return false;
     }
 
+    // Wassenger rechaza (400) números sin código de país, ej. 0987423072
+    const targetPhone = normalizePhoneEC(prospect.user_phone);
+    if (!targetPhone) {
+      console.warn(`[ALUNA-FOLLOWUP] ⚠️ Teléfono inválido, se omite envío: ${prospect.user_phone}`);
+      return false;
+    }
+
     const response = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
       body: JSON.stringify({
-        phone: prospect.user_phone,
+        phone: targetPhone,
         message,
         device: WASSENGER_DEVICE_ID
       })
@@ -514,11 +522,18 @@ async function sendRenewalReminderMessage(member, message, reminderType) {
       return false;
     }
 
+    // Wassenger rechaza (400) números sin código de país, ej. 0987423072
+    const targetPhone = normalizePhoneEC(member.user_phone);
+    if (!targetPhone) {
+      console.warn(`[ALUNA-RENEWAL] ⚠️ Teléfono inválido, se omite envío: ${member.user_phone}`);
+      return false;
+    }
+
     const response = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
       body: JSON.stringify({
-        phone: member.user_phone,
+        phone: targetPhone,
         message,
         device: WASSENGER_DEVICE_ID
       })
@@ -674,11 +689,18 @@ async function sendRebookReminderMessage(reservation, message) {
       return false;
     }
 
+    // Wassenger rechaza (400) números sin código de país, ej. 0987423072
+    const targetPhone = normalizePhoneEC(reservation.user_phone);
+    if (!targetPhone) {
+      console.warn(`[AURORA-REBOOK] ⚠️ Teléfono inválido, se omite envío: ${reservation.user_phone}`);
+      return false;
+    }
+
     const response = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
       body: JSON.stringify({
-        phone: reservation.user_phone,
+        phone: targetPhone,
         message,
         device: WASSENGER_DEVICE_ID
       })
