@@ -656,7 +656,11 @@ O si prefieres, reenvía la foto más clara 📸`
     
     // PASO 3: Validar todos los parámetros
     const membershipInfo = MEMBERSHIP_TYPES[pendingLead.membership_type];
-    const expectedAmount = membershipInfo.price;
+    // Renovación con oferta de recuperación (Aluna D+5): el lead trae su % de descuento
+    const renewalDiscountPct = Number(pendingLead.renewal_discount_pct) || 0;
+    const expectedAmount = renewalDiscountPct > 0
+      ? Math.round(membershipInfo.price * (1 - renewalDiscountPct / 100) * 100) / 100
+      : membershipInfo.price;
     
     // Para pagos compuestos, validar contra el total compuesto
     let actualAmount = paymentData.amount;

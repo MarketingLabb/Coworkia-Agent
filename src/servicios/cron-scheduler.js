@@ -6,7 +6,8 @@ import {
   cleanupOldInteractions,
   cleanupExpiredPartialForms 
 } from '../../scripts/database/cleanup-expired-data.js';
-import { processFollowUps, processAlunaLeadFollowUps, processMembershipRenewalReminders, processAuroraRebookReminders, processAxelQuoteReminders } from './follow-up-service.js';
+import { processFollowUps, processAlunaLeadFollowUps, processAuroraRebookReminders, processAxelQuoteReminders } from './follow-up-service.js';
+import { processRenewalSequence } from './aluna-renewal/renewal-sequence.js';
 import { processPaulaFollowUps } from './paula-followup-service.js';
 import dailyCleanup from '../../scripts/maintenance/daily-cleanup.js';
 import { expireCodesForDate } from './wifi-codes-service.js';
@@ -157,17 +158,20 @@ export function initScheduler() {
   jobs.push(wifiCodeExpiryJob);
   console.log('[CRON] 📅 Expiración de códigos WiFi: 00:05 diario');
 
-  // ✅ Recordatorios de renovación de membresías Aluna
-  // Diario a las 9:00 AM Ecuador. ALUNA avisa 5 días antes (día 25) y el día de vencimiento (día 30)
+  // ✅ Secuencia de renovación de membresías Aluna (D-3, D-1, D+1, D+5 + "renuevo el X")
+  // Cada 10 min entre 9:00 y 19:59 Ecuador. Es idempotente: cada paso se reserva en
+  // membership_renewal_notifications antes de enviarse, así correr seguido no duplica.
+  // Corre cada 10 min para que el link de pago (D-3b) salga ~8 min después del primer aviso.
   const membershipRenewalJob = new CronJob(
-    '0 9 * * *', // 9:00 AM diario
+    '*/10 9-19 * * *',
     async () => {
       try {
-        console.log('[CRON] 🌙 Verificando recordatorios de renovación de membresías...');
-        const result = await processMembershipRenewalReminders();
-        console.log(`[CRON] ✅ Renovaciones: ${result.sent1} (día 25), ${result.sent2} (día 30), ${result.skipped} saltados`);
+        const result = await processRenewalSequence();
+        if (result.sent || result.failed) {
+          console.log(`[CRON] 🌙 Renovaciones: ${result.sent} enviados ${JSON.stringify(result.byStep)}, ${result.deferred} pospuestos, ${result.failed} fallidos`);
+        }
       } catch (error) {
-        console.error('[CRON] ❌ Error en recordatorios de renovación:', error);
+        console.error('[CRON] ❌ Error en secuencia de renovación:', error);
       }
     },
     null,
@@ -176,7 +180,7 @@ export function initScheduler() {
   );
 
   jobs.push(membershipRenewalJob);
-  console.log('[CRON] 📅 Recordatorios renovación membresías: 9:00 AM diario');
+  console.log('[CRON] 📅 Secuencia renovación membresías: cada 10 min, 9:00–19:59');
 
   // ⚠️ DESACTIVADO Sprint 1 dedup (6 abr 2026) — redundante con aurora-enzo-followup-cron.js (10:00 AM)
   // Ambos marcan rebook_reminder_sent_at → sin duplicados de mensajes, pero cron redundante.

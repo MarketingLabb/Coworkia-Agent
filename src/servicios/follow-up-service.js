@@ -11,12 +11,7 @@ import {
   markProspect24hSent,
   markProspect3dSent,
   markProspect24hEmailSent,
-  markProspect3dEmailSent,
-  findMembersForRenewalReminder1,
-  findMembersForRenewalReminder2,
-  markRenewalReminder1Sent,
-  markRenewalReminder2Sent,
-  findMembersExpiringTomorrow
+  markProspect3dEmailSent
 } from '../database/alunaRepository.js';
 import {
   findQuotesForReminder1,
@@ -27,7 +22,6 @@ import {
 import { sendAxelReminderEmail } from './axel-quote-email.js';
 import { sendEmail, AGENT_FROM_NAMES, DEFAULT_FROM_EMAIL } from './email.js';
 import { generateAlunaFollowup2HTML, generateAlunaFollowup3HTML } from './generic-email-templates.js';
-import { buildEmailTemplate } from './email-template-system.js';
 
 const TWO_HOURS_MS = 120 * 60 * 1000; // 2 horas en milisegundos
 
@@ -482,184 +476,7 @@ export async function processFollowUps() {
   };
 }
 
-/**
- * 💌 Genera mensaje de recordatorio de renovación día 25 (5 días antes)
- */
-function buildRenewalReminder1Message(member) {
-  const name = (member.client_name || '').split(' ')[0] || 'Hola';
-  const plan = member.membership_type ? `*${member.membership_type}*` : 'tu membresía';
-  return `Hola ${name} 🌙 Tu ${plan} vence en 5 días. Cuando quieras renovar, me avisas y te ayudo con todo 😊`;
-}
-
-/**
- * 💌 Genera mensaje de recordatorio de vencimiento día 30
- */
-function buildRenewalReminder2Message(member) {
-  const name = (member.client_name || '').split(' ')[0] || 'Hola';
-  const plan = member.membership_type ? `*${member.membership_type}*` : 'tu membresía';
-  return `Hola ${name} 🌟 Hoy se cumple el mes de tu ${plan}. ¿Todo listo para renovar? Cuando digas, estoy aquí ✨`;
-}
-
-/**
- * 🚨 Genera mensaje de último recordatorio (1 día antes)
- */
-function buildRenewalFinalReminderMessage(member) {
-  const name = (member.client_name || '').split(' ')[0] || 'Hola';
-  const plan = member.membership_type ? `*${member.membership_type}*` : 'tu membresía';
-  return `Hola ${name} ⏰ Tu ${plan} vence *mañana*. Renueva hoy y mantén tu espacio asegurado. ¿Te ayudo con la renovación? 🙌`;
-}
-
-/**
- * 📤 Envía recordatorio de renovación y registra en interactions
- */
-async function sendRenewalReminderMessage(member, message, reminderType) {
-  try {
-    const WASSENGER_TOKEN = process.env.WASSENGER_TOKEN;
-    const WASSENGER_DEVICE_ID = process.env.WASSENGER_DEVICE_ID;
-
-    if (!WASSENGER_TOKEN || !WASSENGER_DEVICE_ID) {
-      console.error('[ALUNA-RENEWAL] ❌ Credenciales Wassenger no configuradas');
-      return false;
-    }
-
-    // Wassenger rechaza (400) números sin código de país, ej. 0987423072
-    const targetPhone = normalizePhoneEC(member.user_phone);
-    if (!targetPhone) {
-      console.warn(`[ALUNA-RENEWAL] ⚠️ Teléfono inválido, se omite envío: ${member.user_phone}`);
-      return false;
-    }
-
-    const response = await fetch('https://api.wassenger.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
-      body: JSON.stringify({
-        phone: targetPhone,
-        message,
-        device: WASSENGER_DEVICE_ID
-      })
-    });
-
-    if (!response.ok) throw new Error(`Wassenger error: ${response.status}`);
-
-    console.log(`[ALUNA-RENEWAL] ✅ ${reminderType} enviado a ${member.user_phone}`);
-
-    await databaseService.run(
-      `INSERT INTO interactions (
-        user_phone, agent, agent_name, intent_reason, input, output, meta
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        member.user_phone,
-        'aluna',
-        'Aluna - Closer Membresías',
-        `renewal_reminder_${reminderType}`,
-        '',
-        message,
-        JSON.stringify({ automatic: true, followUp: true, type: `renewal_${reminderType}`, timestamp: new Date().toISOString() })
-      ]
-    );
-    return true;
-  } catch (err) {
-    console.error(`[ALUNA-RENEWAL] ❌ Error enviando a ${member.user_phone}:`, err.message);
-    return false;
-  }
-}
-
-/**
- * 🌙 Proceso de recordatorios de renovación de membresías (día 25 y día 30)
- * Corre diariamente a las 9:00am Ecuador.
- */
-export async function processMembershipRenewalReminders() {
-  console.log('[ALUNA-RENEWAL] 🚀 Iniciando recordatorios de renovación de membresías...');
-
-  let sent1 = 0, sent2 = 0, skipped = 0;
-
-  // ── RONDA 1: Recordatorio 5 días antes (día 25) ─────────────────────────
-  const members1 = await findMembersForRenewalReminder1();
-  console.log(`[ALUNA-RENEWAL] 🔍 Miembros para recordatorio 1 (día 25): ${members1.length}`);
-
-  for (const member of members1) {
-    try {
-      const message = buildRenewalReminder1Message(member);
-      const ok = await sendRenewalReminderMessage(member, message, '1');
-      if (ok) {
-        await markRenewalReminder1Sent(member.id);
-        sent1++;
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        skipped++;
-      }
-    } catch (err) {
-      console.error(`[ALUNA-RENEWAL] ❌ Error reminder1 ${member.user_phone}:`, err.message);
-      skipped++;
-    }
-  }
-
-  // ── RONDA 2: Recordatorio de vencimiento (día 30) ────────────────────────
-  const members2 = await findMembersForRenewalReminder2();
-  console.log(`[ALUNA-RENEWAL] 🔍 Miembros para recordatorio 2 (día 30): ${members2.length}`);
-
-  for (const member of members2) {
-    try {
-      const message = buildRenewalReminder2Message(member);
-      const ok = await sendRenewalReminderMessage(member, message, '2');
-      if (ok) {
-        await markRenewalReminder2Sent(member.id);
-        sent2++;
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        skipped++;
-      }
-    } catch (err) {
-      console.error(`[ALUNA-RENEWAL] ❌ Error reminder2 ${member.user_phone}:`, err.message);
-      skipped++;
-    }
-  }
-
-  // ── RONDA 3: Recordatorio 1 día antes (WA + Email HTML) ───────────────
-  let sent3 = 0;
-  const members3 = await findMembersExpiringTomorrow();
-  console.log(`[ALUNA-RENEWAL] 🔍 Miembros expirando mañana (1 día antes): ${members3.length}`);
-
-  for (const member of members3) {
-    try {
-      // WhatsApp
-      const waMessage = buildRenewalFinalReminderMessage(member);
-      const waOk = await sendRenewalReminderMessage(member, waMessage, 'final');
-
-      // Email HTML con upsale
-      if (member.email) {
-        const firstName = (member.client_name || '').split(' ')[0] || 'Hola';
-        const html = buildEmailTemplate('ALUNA', 'RENEWAL', {
-          name: member.client_name || firstName,
-          plan: member.membership_type || 'tu plan',
-          expirationDate: member.expiration_date,
-          monthlyFee: member.monthly_fee
-        }, { xiaomiSafe: true });
-        await sendEmail({
-          to: member.email,
-          subject: `⏰ ${firstName}, tu membresía vence mañana — renueva con beneficio`,
-          html,
-          from: { name: AGENT_FROM_NAMES.aluna, address: DEFAULT_FROM_EMAIL }
-        });
-        console.log(`[ALUNA-RENEWAL] 📧 Email renovación enviado a ${member.email}`);
-      }
-
-      if (waOk) {
-        await markRenewalReminder2Sent(member.id); // reuse marker for final
-        sent3++;
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        skipped++;
-      }
-    } catch (err) {
-      console.error(`[ALUNA-RENEWAL] ❌ Error reminder final ${member.user_phone}:`, err.message);
-      skipped++;
-    }
-  }
-
-  console.log(`[ALUNA-RENEWAL] 📊 Resumen: ${sent1} enviados (día 25), ${sent2} enviados (día 30), ${sent3} enviados (1 día antes), ${skipped} saltados`);
-  return { sent1, sent2, sent3, skipped };
-}
+// Recordatorios de renovación de membresías: ver ./aluna-renewal/renewal-sequence.js
 
 /**
  * 💬 Genera mensaje de sugerencia de re-reserva para AURORA

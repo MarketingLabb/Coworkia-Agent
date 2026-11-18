@@ -1958,6 +1958,30 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
     // ══════════════════════════════════════════════════════════════════════
 
     // ══════════════════════════════════════════════════════════════════════
+    // 🌙 RENOVACIÓN ALUNA: respuestas a la secuencia de renovación
+    // ("sí", "renuevo el 25", "no voy a renovar", "no me escribas más").
+    // Solo actúa si a este número le llegó un aviso de renovación reciente y el
+    // mensaje es una respuesta clara; si no, sigue el flujo normal.
+    // No intercepta menciones @agente ni comandos del jefe.
+    // ══════════════════════════════════════════════════════════════════════
+    if (processedText && !processedText.trim().startsWith('@')) {
+      try {
+        const { handleRenewalReply } = await import('../../servicios/aluna-renewal/renewal-sequence.js');
+        const renewal = await handleRenewalReply({ userId, text: processedText });
+        if (renewal?.reply) {
+          await enviarWhatsApp(userId, renewal.reply);
+          await saveConversationMessage(userId, { role: 'assistant', content: renewal.reply, agent: 'ALUNA' });
+          if (profile.activeAgent !== 'ALUNA') {
+            await updateProfile(userId, { activeAgent: 'ALUNA' }, { reason: 'renewal_reply' });
+          }
+          return;
+        }
+      } catch (renewalErr) {
+        console.error('[ALUNA-RENEWAL] ⚠️ Error manejando respuesta (sigue flujo normal):', renewalErr.message);
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // �👔 BOSS COMMANDS: Gabi — cotización por orden directa del jefe
     // Solo activo cuando: userId === ADMIN_PHONE + agente GABI + email presente
     // ══════════════════════════════════════════════════════════════════════

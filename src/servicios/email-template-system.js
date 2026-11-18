@@ -1316,6 +1316,57 @@ export function buildAlunaRenewalHTML({ name, plan = 'Membresía', expirationDat
 </html>`;
 }
 
+// ─── TEMPLATE: ALUNA RENEWAL STEP (D+1 recordatorio / D+5 recuperación) ─────
+
+/**
+ * 🌙 Email de un paso de la secuencia de renovación (después del vencimiento).
+ * @param {object} data { name, plan, badge, title, message }
+ */
+export function buildAlunaRenewalStepHTML({ name, plan = 'Membresía', badge = 'RENOVACIÓN', title = '', message = '' }, { xiaomiSafe = false } = {}) {
+  const firstName = name ? name.trim().split(' ')[0] : '';
+  const safeFirstName = escapeHtml(firstName);
+  const safePlan = escapeHtml(plan);
+  const waText = encodeURIComponent(`¡Hola @aluna!, quiero renovar mi ${plan}`);
+  return `<!DOCTYPE html>
+<html lang="es" style="color-scheme:light !important;">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <style>:root{color-scheme:light !important;}${getEmailStyles({ xiaomiSafe })}</style>
+  <title>${escapeHtml(title)} — Coworkia</title>
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div class="em-container" style="width:100%;max-width:600px;margin:0 auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+  <div style="background:linear-gradient(135deg,#047857 0%,#065F46 100%);text-align:center;padding:40px 20px 35px;">
+    <div style="color:white;font-size:44px;font-weight:700;margin-bottom:6px;line-height:1;">Coworkia</div>
+    <div style="color:rgba(255,255,255,0.9);font-size:11px;font-weight:600;letter-spacing:6px;text-transform:uppercase;margin-bottom:24px;">BUSINESS CENTER</div>
+    <div style="background:rgba(255,255,255,0.97);border-radius:16px;padding:22px 28px;display:inline-block;min-width:280px;text-align:center;">
+      <div style="background:#F59E0B;color:white;display:inline-block;padding:4px 14px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">${escapeHtml(badge)}</div>
+      <div style="color:#111827;font-size:18px;font-weight:800;">${escapeHtml(title)}</div>
+      <div style="color:#047857;font-size:12px;font-weight:600;margin-top:8px;">Aluna · Especialista en Membresías</div>
+    </div>
+  </div>
+  <div style="padding:30px;">
+    <h2 style="color:#1f2937;font-size:20px;margin:0 0 12px;text-align:center;">${safeFirstName ? `${safeFirstName}, ` : ''}tu espacio te espera 🌟</h2>
+    <p style="color:#374151;font-size:15px;line-height:1.7;text-align:center;margin:0 0 26px;">${escapeHtml(message)}</p>
+    <div style="text-align:center;margin-bottom:12px;">
+      <a href="${CONTACT.whatsappUrl}?text=${waText}"
+         style="background:linear-gradient(135deg,#047857,#065F46);color:white;padding:16px 36px;text-decoration:none;border-radius:25px;font-weight:700;display:inline-block;font-size:16px;">
+        🔄 Renovar mi ${safePlan} →
+      </a>
+      <p style="color:#9CA3AF;font-size:12px;margin:10px 0 0;">Te respondemos por WhatsApp en minutos</p>
+    </div>
+  </div>
+  <div style="background:#0A0D12;padding:24px;text-align:center;color:rgba(255,255,255,0.6);font-size:11px;line-height:1.8;">
+    © 2026 Coworkia Ecuador — Espacios que inspiran<br>${COWORKIA_ADDRESS_FULL}<br>${CONTACT.email} &nbsp;·&nbsp; ${CONTACT.phoneDisplay}
+  </div>
+</div>
+</body>
+</html>`;
+}
+
 // ─── DISPATCHER CENTRAL ──────────────────────────────────────────────────────
 
 /**
@@ -1335,6 +1386,7 @@ export function buildEmailTemplate(agent, type, data, options = {}) {
     ALUNA_D1:                 () => buildAlunaD1HTML(data, { xiaomiSafe }),
     ALUNA_D3:                 () => buildAlunaD3HTML(data, { xiaomiSafe }),
     ALUNA_RENEWAL:            () => buildAlunaRenewalHTML(data, { xiaomiSafe }),
+    ALUNA_RENEWAL_STEP:       () => buildAlunaRenewalStepHTML(data, { xiaomiSafe }),
     AURORA_CONFIRMATION:      () => buildAuroraConfirmationHTML(data, { xiaomiSafe }),
     AURORA_REBOOKING:         () => buildAuroraRebookingHTML(data, { xiaomiSafe }),
     AURORA_D1:                () => buildAuroraD1HTML(data, { xiaomiSafe }),
