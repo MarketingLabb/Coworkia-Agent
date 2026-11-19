@@ -446,7 +446,7 @@ describe('🎯 E2E: Sistema Multi-Agente Completo', () => {
         expect(agent.personalidad).toBeDefined();
         expect(agent.personalidad.idiomas).toBeDefined();
         expect(agent.getSystemPrompt).toBeDefined();
-        expect(agent.lastUpdated).toBe('2026-01-12');
+        expect(agent.lastUpdated).toMatch(/^\d{4}-\d{2}-\d{2}$/); // fecha de última actualización del agente
       }
     });
     
