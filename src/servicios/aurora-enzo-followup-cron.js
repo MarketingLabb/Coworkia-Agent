@@ -21,6 +21,7 @@ import {
 } from './aurora-followup-service.js';
 import { sendEnzoD1Followups, sendEnzoD3Followups, sendEnzoD7Followups } from './enzo-followup-service.js';
 import { sendAdrianaS1Followups, sendAdrianaS2Followups, sendAdrianaS3Followups } from './adriana-followup-service.js';
+import { processPolicyRenewals } from './adriana-policy-renewal.js';
 import { analyzeConversations } from './autotraining-service.js';
 import { loggers } from '../utils/logger.js';
 
@@ -153,9 +154,9 @@ export function startAuroraEnzoCronJobs() {
 
   logger.info('[CRON] ✅ Enzo D+7 configurado (10:30 AM Ecuador)');
 
-  // ─── ADRIANA: S1 D+1 (10:00 AM Ecuador = 15:00 UTC) ──────────
+  // ─── ADRIANA: S1 D+1 (10:00 AM Ecuador — el CronJob usa zona America/Guayaquil) ──
   const adrianaS1Job = new CronJob(
-    '0 15 * * *',
+    '0 10 * * *',
     async function () {
       logger.info('[CRON-ADRIANA] 📅 Ejecutando S1 D+1 follow-up...');
       try {
@@ -169,11 +170,11 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Adriana S1 configurado (10:00 AM Ecuador)');
 
-  // ─── ADRIANA: S2 D+3 (11:30 AM Ecuador = 16:30 UTC) ──────────
+  // ─── ADRIANA: S2 D+3 (11:30 AM Ecuador) ──────────
   const adrianaS2Job = new CronJob(
-    '30 16 * * *',
+    '30 11 * * *',
     async function () {
-      logger.info('[CRON-ADRIANA] ⏰ Ejecutando S2 D+3 FOMO...');
+      logger.info('[CRON-ADRIANA] ⏰ Ejecutando S2 D+3...');
       try {
         const result = await sendAdrianaS2Followups();
         logger.info(`[CRON-ADRIANA] ✅ S2: ${result.sent} enviados`);
@@ -185,9 +186,9 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Adriana S2 configurado (11:30 AM Ecuador)');
 
-  // ─── ADRIANA: S3 D+7 (09:30 AM Ecuador = 14:30 UTC) ──────────
+  // ─── ADRIANA: S3 D+7 (09:30 AM Ecuador) ──────────
   const adrianaS3Job = new CronJob(
-    '30 14 * * *',
+    '30 9 * * *',
     async function () {
       logger.info('[CRON-ADRIANA] 🤝 Ejecutando S3 D+7 reconexión...');
       try {
@@ -200,6 +201,23 @@ export function startAuroraEnzoCronJobs() {
     null, true, 'America/Guayaquil'
   );
   logger.info('[CRON] ✅ Adriana S3 configurado (09:30 AM Ecuador)');
+
+  // ─── ADRIANA: renovación de pólizas D-30 / D-15 / D-7 (10:20 AM Ecuador) ──
+  // Idempotente: cada aviso se reserva en insurance_renewal_notifications antes de enviarse.
+  const adrianaRenewalJob = new CronJob(
+    '20 10 * * *',
+    async function () {
+      logger.info('[CRON-ADRIANA] 🔄 Ejecutando renovación de pólizas...');
+      try {
+        const result = await processPolicyRenewals();
+        logger.info(`[CRON-ADRIANA] ✅ Renovaciones: ${result.sent} enviados ${JSON.stringify(result.byStep)}`);
+      } catch (err) {
+        logger.error('[CRON-ADRIANA] ❌ Error renovación de pólizas:', err);
+      }
+    },
+    null, true, 'America/Guayaquil'
+  );
+  logger.info('[CRON] ✅ Adriana renovación de pólizas configurado (10:20 AM Ecuador)');
 
   // ─── AURORA: D+1 feedback (10:05 AM Ecuador) ─────────────────
   const auroraD1Job = new CronJob(
@@ -328,11 +346,11 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Autotraining semanal configurado (domingo 3:00 AM Ecuador)');
 
-  logger.info('[CRON] 🚀 Aurora + Enzo + Adriana follow-up crons activos (18 jobs)');
+  logger.info('[CRON] 🚀 Aurora + Enzo + Adriana follow-up crons activos (19 jobs)');
 
   return {
     aurora1hJob, auroraDeliveryRetryJob, auroraRebookJob, enzoD1Job, enzoD3Job, enzoD7Job,
-    adrianaS1Job, adrianaS2Job, adrianaS3Job,
+    adrianaS1Job, adrianaS2Job, adrianaS3Job, adrianaRenewalJob,
     auroraD1Job, auroraD3Job, auroraReminder24hJob, auroraReminder2hJob,
     auroraReminder10minJob, auroraNoShowJob, auroraUpsellJob, auroraPaymentJob,
     autotrainingJob
