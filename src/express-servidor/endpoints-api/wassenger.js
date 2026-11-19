@@ -66,8 +66,6 @@ import { detectKnowledgeGap } from '../../servicios/knowledge-gap-detector.js';
 import { clearJustConfirmed, clearPendingConfirmation, getPendingConfirmation } from '../../servicios/reservation-state.js';
 import { isBossQuoteCommand, parseGabiQuoteData, sendGabiConsultoriaEmail } from '../../servicios/gabi-cotizacion-email.js';
 import { isAxelBossQuoteCommand, parseAxelDemoQuoteData, sendAxelDemoCotizacion } from '../../servicios/axel-demo-cotizacion.js';
-import { isEnzoBossQuoteCommand, sendEnzoCotizacion } from '../../servicios/enzo-cotizacion-email.js';
-// enzo-consulting-flow: imported dynamically when needed (#PROCESS_FORM or active state)
 import { isPaulaBossQuoteCommand, parsePaulaQuoteData, sendPaulaCotizacion } from '../../servicios/paula-cotizacion-email.js';
 import { detectEmailChange, isPaulaEmailRequest, findPropertyNumber, extractEmail, paulaCopy, buildQuoteCommand } from '../../servicios/paula-client-requests.js';
 import { saveBossQuote, generateBossQuoteCode } from '../../database/bossQuotesRepository.js';
@@ -78,7 +76,6 @@ import { calculateAllCoverages, formatPremiumForWhatsApp, inferVehicleCategory, 
 import { generateMultiQuotes, saveLeadQuotes, formatQuotesForTemplate } from '../../servicios/adriana-multi-quote-engine.js';
 import { processFormMessage, getOrCreateConversation, resetForm } from '../../servicios/adriana-conversational-form.js';
 import { processRealEstateForm } from '../../servicios/real-estate-form.js';
-import enzoRepository from '../../database/enzoRepository.js';
 import { saveLegalLead } from '../../database/gabiRepository.js';
 import { saveRealEstateLead } from '../../database/paulaRepository.js';
 import { saveCollisionQuote } from '../../database/axelRepository.js';
@@ -1973,6 +1970,37 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
         await updateProfile(userId, { activeAgent: mentionedAgent }, { reason: 'pre_handoff_boss' });
       }
     }
+
+    // ═══════════════════════════════════════════════════
+    // 🎨 ENZO STUDIO — community manager interno (artes para Meta)
+    // Solo el equipo (ADMIN_PHONE + ENZO_TEAM_PHONES). Para cualquier otra persona,
+    // Enzo no existe: sigue con Aurora y avisamos al jefe (p. ej. leads de la web OneMind).
+    // ═══════════════════════════════════════════════════
+    const mentionsEnzo = /^\s*@enzo\b/i.test(processedText || '');
+    if (mentionsEnzo || profile.activeAgent === 'ENZO') {
+      const { isEnzoTeamMember, handleEnzoStudio } = await import('../../servicios/enzo-studio/enzo-studio.js');
+      if (isEnzoTeamMember(userId)) {
+        if (processedText && !mediaUrl) {
+          await saveConversationMessage(userId, { role: 'user', content: processedText, agent: 'ENZO' }).catch(() => {});
+          await handleEnzoStudio({
+            userId,
+            text: processedText,
+            io: {
+              sendText: (to, msg) => enviarWhatsApp(to, msg),
+              sendImage: (to, buffer, { filename, caption }) => enviarWhatsAppArchivo(to, buffer, { filename, mimetype: 'image/jpeg', caption }),
+            },
+          });
+          return;
+        }
+      } else {
+        profile.activeAgent = 'AURORA';
+        await updateProfile(userId, { activeAgent: 'AURORA' }, { reason: 'enzo_internal_only' }).catch(() => {});
+        if (mentionsEnzo && ADMIN_PHONE) {
+          const leadName = profile.name || name || userId;
+          enviarWhatsApp(ADMIN_PHONE, `📥 *Mensaje para @enzo de un cliente* (Enzo ahora es interno; lo atiende Aurora)\n\n👤 ${leadName} · ${userId}\n💬 "${String(processedText).slice(0, 300)}"`).catch(() => {});
+        }
+      }
+    }
     // ══════════════════════════════════════════════════════════════════════
 
     // ══════════════════════════════════════════════════════════════════════
@@ -2114,62 +2142,6 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
           await enviarWhatsApp(userId, reply);
           return;
         }
-      }
-    }
-    // ══════════════════════════════════════════════════════════════════════
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 👔 BOSS COMMANDS: Enzo — cotización IA personalizada para MarketingLab
-    // El jefe dicta TODO: empresa, contacto, necesidad. OpenAI estructura y genera propuesta
-    // Solo activo cuando: userId === ADMIN_PHONE + agente ENZO + email presente
-    // ══════════════════════════════════════════════════════════════════════
-    if (ADMIN_PHONE && isAdminPhone(userId) && processedText && profile.activeAgent === 'ENZO') {
-      if (isEnzoBossQuoteCommand(processedText)) {
-        console.log('[BOSS-CMD] 👔 Cotización ENZO solicitada por jefe — procesando con OpenAI...');
-        const quoteCode = await generateBossQuoteCode('ENZO');
-        await enviarWhatsApp(userId, `🧠 *Enzo procesando propuesta con IA...*\nAnalizando datos del cliente y elaborando oferta personalizada. Esto toma ~20 segundos ⚡\n🔑 ${quoteCode}`);
-        await new Promise(r => setTimeout(r, 600));
-        const result = await sendEnzoCotizacion(processedText, { quoteCode });
-        
-        // Guardar en boss_quotes (histórico)
-        await saveBossQuote({
-          agent:       'ENZO',
-          clientName:  result.contacto || null,
-          clientEmail: result.email    || null,
-          companyName: result.empresa  || null,
-          serviceInfo: result.nivel    || null,
-          amountMin:   result.precio   ?? null,
-          amountMax:   result.precio   ?? null,
-          quoteCode,
-          emailSent:   result.success,
-        });
-        
-        // 🆕 Guardar en marketing_leads (para dashboard)
-        if (result.success) {
-          try {
-            await enzoRepository.saveMarketingLead({
-              projectCode: quoteCode,
-              userId: userId, // admin phone — tiene FK válido en users
-              projectType: result.nivel || 'Automatización IA',
-              company: result.empresa || null,
-              clientName: result.contacto || 'Cliente',
-              email: result.email,
-              phone: normalizePhoneEC(result.telefono) || null, // número del cliente extraído por OpenAI
-              budgetRange: result.precio ? `$${result.precio}` : 'Por definir',
-              urgency: 'Normal',
-              description: `Cotización generada por Big Boss - ${result.nivel || 'Agente IA'}`
-            });
-            console.log(`[BOSS-CMD] ✅ Proyecto guardado en marketing_leads: ${quoteCode}`);
-          } catch (err) {
-            console.error('[BOSS-CMD] ⚠️ Error guardando en marketing_leads:', err.message);
-          }
-        }
-        
-        const reply = result.success
-          ? `✅ *Propuesta enviada por Enzo*\n🏢 ${result.empresa}\n👤 ${result.contacto}\n📧 ${result.email}\n🤖 Nivel: ${result.nivel}\n💰 $${result.precio?.toLocaleString()} USD`
-          : `❌ Error al generar propuesta Enzo: ${result.error}`;
-        await enviarWhatsApp(userId, reply);
-        return;
       }
     }
     // ══════════════════════════════════════════════════════════════════════
@@ -2692,49 +2664,6 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
     // - Cualquier otro mensaje con intención de reserva: SÍ activar formulario
     const shouldActivateForm = !hasVirtualAgentPromo && (hasServiceInterest || isReservationIntent(processedText) || hasActiveForm || isFormContinuation);
     
-    // 🎯 ENZO - Flujo consultivo estructurado SOLO para #PROCESS_FORM o states activos
-    // Conversaciones normales → orquestador con system prompt + conversation history (más natural)
-    if (profile.activeAgent === 'ENZO' && !isEnzoBossQuoteCommand(processedText)) {
-      try {
-        // Importar módulos del consulting flow
-        const { processEnzoConsultingFlowFull } = await import('../../servicios/enzo-consulting-flow.js');
-        const { getPendingConfirmation } = await import('../../servicios/reservation-state.js');
-
-        // Solo activar consulting flow si:
-        // 1. Hay un state activo (QUALIFYING/CONFIRMING/WAITING_EMAIL) — respetar flujo en progreso
-        // 2. El mensaje tiene #PROCESS_FORM — el cliente quiere formalizar
-        const existingState = await getPendingConfirmation(userId).catch(() => null);
-        const hasActiveState = existingState?.type === 'enzo_consulting';
-        const hasProcessForm = /\#PROCESS_FORM/i.test(processedText);
-
-        if (hasActiveState || hasProcessForm) {
-          const enzoResult = await processEnzoConsultingFlowFull(userId, processedText, profile);
-          if (enzoResult.handled) {
-            console.log(`[ENZO-FLOW] ✅ Manejado por ${hasActiveState ? 'state activo' : '#PROCESS_FORM'}`);
-            await enviarWhatsApp(userId, enzoResult.reply);
-            await saveConversationMessage(userId, { role: 'assistant', content: enzoResult.reply, agent: 'ENZO' });
-            await saveInteraction({
-              userId, agent: 'ENZO', agentName: 'Enzo - MarketingLab',
-              intentReason: hasActiveState ? 'enzo_consulting_state' : 'enzo_process_form',
-              input: processedText, output: enzoResult.reply,
-              meta: { envelope }
-            });
-            return;
-          }
-        }
-      } catch (enzoErr) {
-        console.error('[ENZO-FLOW] ❌ Error en flujo consultivo, fallback al LLM:', enzoErr.message);
-      }
-      // 🆕 Auto-captura de lead: registra al prospecto en marketing_leads aunque
-      //    no llegue a #PROCESS_FORM (excluye Diego/admin internamente).
-      try {
-        const enzoLeadName = profile?.nombre || envelope?.from?.name || 'Sin nombre';
-        await enzoRepository.captureEnzoLeadFromKeywords(userId, enzoLeadName, processedText);
-      } catch (captureErr) {
-        console.warn('[ENZO-CAPTURE] ⚠️ Error en auto-captura (no crítico):', captureErr.message);
-      }
-      // → Conversaciones normales fluyen al orquestador con Enzo system prompt + history
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // 💜 ALUNA FLOW: Membresías (PRE-LLM)
@@ -3456,6 +3385,10 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
 
     // “Media event” para Aurora Core: si no hay texto pero hay media, damos un texto técnico controlado
     let auroraInput = processedText;
+    // Enzo es interno: para clientes, "@enzo" solo avisa al equipo (arriba) y Aurora sigue la conversación
+    if (/^\s*@enzo\b/i.test(auroraInput || '')) {
+      auroraInput = auroraInput.replace(/^\s*@enzo\b[\s,:-]*/i, '') || 'Hola';
+    }
     if (!auroraInput && mediaUrl) {
       auroraInput = `[MEDIA:${type}] El usuario envió un archivo. URL: ${mediaUrl}`;
     }
@@ -3494,9 +3427,12 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
       (Date.now() - new Date(profile.lastVirtualAgentPromoAt).getTime() < 30 * 60 * 1000) &&
       /^(s[ií]|claro|dale|ok|quiero|me interesa|interesa|me gustar[ií]a|cu[aá]nto|c[oó]mo|arrancamos|empecemos|quiero saber m[aá]s|m[aá]s info|si por favor|genial|suena bien|me convence|perfecto|hagámoslo|hag[aá]moslo)[,!.\s]*$/i.test((processedText || '').trim())
     ) {
-      console.log('[CAMPAIGN-2] 🚀 Post-promo interest detectado → handoff automático a ENZO');
-      await updateProfile(userId, { lastVirtualAgentPromoAt: null }, { reason: 'post_promo_enzo_handoff' });
-      auroraInput = `@enzo ${auroraInput}`;
+      // Enzo ahora es interno: el interesado sigue con Aurora y el jefe recibe el lead
+      console.log('[CAMPAIGN-2] 🚀 Post-promo interest detectado → aviso al jefe');
+      await updateProfile(userId, { lastVirtualAgentPromoAt: null }, { reason: 'post_promo_lead' });
+      if (ADMIN_PHONE) {
+        enviarWhatsApp(ADMIN_PHONE, `📥 *Lead OneMind (agentes virtuales)*\n\n👤 ${profile.name || userId} · ${userId}\n💬 "${String(processedText || '').slice(0, 300)}"`).catch(() => {});
+      }
     }
 
     // 🤖 AUTOPILOT: Detectar comandos del sistema ANTES del orquestador
@@ -4712,6 +4648,65 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
 ───────────────────────────────────────────────────────────── */
 
 // Exportar función de envío para uso interno (notifications, scripts, etc)
-export { enviarWhatsApp, enviarWhatsAppVoz };
+/**
+ * 🖼️ Envía un archivo (imagen, PDF…) por WhatsApp con texto opcional.
+ * Sube el archivo a Wassenger y luego envía el mensaje con el file ID.
+ * @param {string} numero
+ * @param {Buffer} buffer
+ * @param {object} opts - { filename, mimetype, caption }
+ * @returns {Promise<{ok: boolean, data?: any, error?: string}>}
+ */
+async function enviarWhatsAppArchivo(numero, buffer, opts = {}) {
+  const WASSENGER_TOKEN = process.env.WASSENGER_TOKEN;
+  const WASSENGER_DEVICE = process.env.WASSENGER_DEVICE || process.env.WASSENGER_DEVICE_ID;
+  if (!WASSENGER_TOKEN || !WASSENGER_DEVICE) return { ok: false, error: 'NO_WASSENGER_CONFIG' };
+
+  const { filename = 'archivo.jpg', mimetype = 'image/jpeg', caption = '' } = opts;
+  try {
+    const FormData = (await import('form-data')).default;
+    const formData = new FormData();
+    formData.append('file', buffer, { filename, contentType: mimetype });
+    formData.append('device', WASSENGER_DEVICE);
+
+    const uploadResponse = await fetch('https://api.wassenger.com/v1/files', {
+      method: 'POST',
+      headers: { Token: WASSENGER_TOKEN, ...formData.getHeaders() },
+      body: formData,
+    });
+    const uploadData = await uploadResponse.json().catch(() => ({}));
+    // Wassenger devuelve un objeto o un array con el archivo subido
+    const fileId = uploadData?.id || (Array.isArray(uploadData) ? uploadData[0]?.id : null);
+    if (!uploadResponse.ok || !fileId) {
+      console.error('[WASSENGER] ❌ Error subiendo archivo:', uploadResponse.status, JSON.stringify(uploadData).slice(0, 300));
+      return { ok: false, error: `Upload failed: HTTP ${uploadResponse.status}`, data: uploadData };
+    }
+
+    const messageResponse = await dispatchHttpRequest({
+      url: 'https://api.wassenger.com/v1/messages',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Token: WASSENGER_TOKEN },
+      body: JSON.stringify({
+        phone: numero,
+        ...(caption ? { message: caption } : {}),
+        media: { file: fileId, filename },
+        device: WASSENGER_DEVICE,
+      }),
+      circuitId: 'wassenger:messages',
+      timeoutMs: 20000,
+      maxRetries: 1,
+    });
+    const messageData = await messageResponse.json().catch(() => ({}));
+    if (!messageResponse.ok) {
+      console.error('[WASSENGER] ❌ Error enviando archivo:', messageResponse.status, JSON.stringify(messageData).slice(0, 300));
+      return { ok: false, error: `Message failed: HTTP ${messageResponse.status}`, data: messageData };
+    }
+    return { ok: true, data: messageData };
+  } catch (error) {
+    console.error('[WASSENGER] ❌ Error enviando archivo:', error.message);
+    return { ok: false, error: error.message };
+  }
+}
+
+export { enviarWhatsApp, enviarWhatsAppVoz, enviarWhatsAppArchivo };
 
 export default router;

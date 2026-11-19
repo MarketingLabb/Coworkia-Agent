@@ -7,7 +7,6 @@
  * - Paula:  GET /leads, /leads-stats, PATCH /leads/:id/status, GET /seed-demo
  * - Adriana:GET /leads, /leads-stats, PATCH /leads/:code/status, GET /seed-demo
  * - Gabi:   GET /consultas, /stats
- * - Enzo:   GET /proyectos, /stats
  * - Axel:   GET /cotizaciones, /stats
  *
  * Usa mocks de DB y Wassenger — no requiere conexión real a Heroku.
@@ -219,45 +218,6 @@ describe('⚖️ Gabi Dashboard — /api/gabi', () => {
     const res = await request(app).get('/api/gabi/dashboard');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('ok');
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ENZO — /api/enzo
-// ═══════════════════════════════════════════════════════════════════════════════
-describe('🎯 Enzo Dashboard — /api/enzo', () => {
-  let app;
-
-  beforeAll(async () => {
-    const mod = await import('../../src/express-servidor/endpoints-api/enzo-dashboard.js');
-    app = await buildApp(mod.default, '/api/enzo');
-  });
-
-  it('GET /api/enzo/projects → 200 con array', async () => {
-    const res = await request(app).get('/api/enzo/projects');
-    expect(res.status).toBe(200);
-    // Enzo usa {success: true} en algunos endpoints
-    const ok = res.body.ok ?? res.body.success;
-    expect(ok).toBe(true);
-    const data = res.body.data ?? res.body.projects ?? [];
-    expect(Array.isArray(data)).toBe(true);
-  });
-
-  it('GET /api/enzo/stats \u2192 200 con m\u00e9tricas', async () => {
-    const res = await request(app).get('/api/enzo/stats');
-    expect(res.status).toBe(200);
-    const ok = res.body.ok ?? res.body.success;
-    expect(ok).toBe(true);
-    // data puede ser {} cuando DB está vacía — solo verificamos que exista
-    expect(res.body).toHaveProperty('data');
-  });
-
-  it('GET /api/enzo/dashboard \u2192 200', async () => {
-    const res = await request(app).get('/api/enzo/dashboard');
-    expect(res.status).toBe(200);
-    // Enzo usa success:true
-    const ok = res.body.ok ?? res.body.success;
-    expect(ok).toBe(true);
   });
 });
 

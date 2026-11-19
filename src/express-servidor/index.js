@@ -62,7 +62,6 @@ import wassengerRouter from './endpoints-api/wassenger.js';
 import gabiDashboardRouter from './endpoints-api/gabi-dashboard.js';
 import alunaDashboardRouter from './endpoints-api/aluna-dashboard.js';
 import auroraDashboardRouter from './endpoints-api/aurora-dashboard.js';
-import enzoDashboardRouter from './endpoints-api/enzo-dashboard.js';
 import adminSeedRouter from './endpoints-api/admin-seed.js';
 import paulaDashboardRouter from './endpoints-api/paula-dashboard.js';
 import axelDashboardRouter from './endpoints-api/axel-dashboard.js';
@@ -227,7 +226,6 @@ app.use('/', wassengerRouter);
 app.use('/api/gabi', gabiDashboardRouter);
 app.use('/api/aluna', alunaDashboardRouter);
 app.use('/api/aurora', auroraDashboardRouter);
-app.use('/api/enzo', enzoDashboardRouter);
 app.use('/api/paula', paulaDashboardRouter);
 app.use('/api/axel', axelDashboardRouter);
 app.use('/api/adriana/dashboard', adrianaDashboardRouter); // Dashboard interno
@@ -311,7 +309,6 @@ async function startServer() {
     console.log('🔔 Iniciando follow-ups Aurora + Enzo...');
     startAuroraEnzoCronJobs();
     console.log('✅ Aurora follow-ups activos (+1h: cada 15min, D+7: 10am)');
-    console.log('✅ Enzo follow-ups activos (D+1: 11am, D+3: 2pm, D+7: 10:30am)');
 
     // Iniciar follow-ups Axel
     console.log('🔧 Iniciando follow-ups automatizados de Axel...');

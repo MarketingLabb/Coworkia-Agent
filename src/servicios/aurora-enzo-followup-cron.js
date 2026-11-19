@@ -5,10 +5,6 @@
  * Aurora:
  *   - Cada 15 min: +1h post-reserva (verificación frecuente)
  *   - 10:00 AM:    D+7 rebooking reminder
- * Enzo:
- *   - 11:00 AM:    D+1 follow-up (recordatorio amigable)
- *   - 14:00 PM:    D+3 follow-up (FOMO + 15% OFF)
- *   - 10:30 AM:    D+7 follow-up (caso de éxito)
  */
 
 import { CronJob } from 'cron';
@@ -19,7 +15,6 @@ import {
   detectAuroraNoShows, sendAuroraUpsellAluna, sendAuroraPaymentReminders,
   retryPendingAuroraDeliveries
 } from './aurora-followup-service.js';
-import { sendEnzoD1Followups, sendEnzoD3Followups, sendEnzoD7Followups } from './enzo-followup-service.js';
 import { sendAdrianaS1Followups, sendAdrianaS2Followups, sendAdrianaS3Followups } from './adriana-followup-service.js';
 import { processPolicyRenewals } from './adriana-policy-renewal.js';
 import { analyzeConversations } from './autotraining-service.js';
@@ -91,68 +86,7 @@ export function startAuroraEnzoCronJobs() {
 
   logger.info('[CRON] ✅ Aurora rebooking D+7 configurado (10:00 AM Ecuador)');
 
-  // ─── ENZO: D+1 (11:00 AM Ecuador = 16:00 UTC) ─────────────────
-  const enzoD1Job = new CronJob(
-    '0 16 * * *',
-    async function () {
-      logger.info('[CRON-ENZO] 📬 Ejecutando D+1 follow-up...');
-      try {
-        const result = await sendEnzoD1Followups();
-        if (result.success) {
-          logger.info(`[CRON-ENZO] ✅ D+1: ${result.sent} enviados, ${result.errors} errores`);
-        }
-      } catch (err) {
-        logger.error('[CRON-ENZO] ❌ Error D+1:', err);
-      }
-    },
-    null,
-    true,
-    'America/Guayaquil'
-  );
-
-  logger.info('[CRON] ✅ Enzo D+1 configurado (11:00 AM Ecuador)');
-
-  // ─── ENZO: D+3 (14:00 Ecuador = 19:00 UTC) ────────────────────
-  const enzoD3Job = new CronJob(
-    '0 19 * * *',
-    async function () {
-      logger.info('[CRON-ENZO] 🔥 Ejecutando D+3 FOMO follow-up...');
-      try {
-        const result = await sendEnzoD3Followups();
-        if (result.success) {
-          logger.info(`[CRON-ENZO] ✅ D+3: ${result.sent} enviados, ${result.errors} errores`);
-        }
-      } catch (err) {
-        logger.error('[CRON-ENZO] ❌ Error D+3:', err);
-      }
-    },
-    null,
-    true,
-    'America/Guayaquil'
-  );
-
-  logger.info('[CRON] ✅ Enzo D+3 configurado (14:00 PM Ecuador)');
-
-  // ─── ENZO: D+7 (10:30 AM Ecuador = 15:30 UTC) ─────────────────
-  const enzoD7Job = new CronJob(
-    '30 15 * * *',
-    async function () {
-      logger.info('[CRON-ENZO] 🏆 Ejecutando D+7 caso-éxito follow-up...');
-      try {
-        const result = await sendEnzoD7Followups();
-        if (result.success) {
-          logger.info(`[CRON-ENZO] ✅ D+7: ${result.sent} enviados, ${result.errors} errores`);
-        }
-      } catch (err) {
-        logger.error('[CRON-ENZO] ❌ Error D+7:', err);
-      }
-    },
-    null,
-    true,
-    'America/Guayaquil'
-  );
-
-  logger.info('[CRON] ✅ Enzo D+7 configurado (10:30 AM Ecuador)');
+  // (Seguimientos de Enzo eliminados: Enzo ahora es el community manager interno)
 
   // ─── ADRIANA: S1 D+1 (10:00 AM Ecuador — el CronJob usa zona America/Guayaquil) ──
   const adrianaS1Job = new CronJob(
@@ -346,10 +280,10 @@ export function startAuroraEnzoCronJobs() {
   );
   logger.info('[CRON] ✅ Autotraining semanal configurado (domingo 3:00 AM Ecuador)');
 
-  logger.info('[CRON] 🚀 Aurora + Enzo + Adriana follow-up crons activos (19 jobs)');
+  logger.info('[CRON] 🚀 Aurora + Adriana follow-up crons activos (16 jobs)');
 
   return {
-    aurora1hJob, auroraDeliveryRetryJob, auroraRebookJob, enzoD1Job, enzoD3Job, enzoD7Job,
+    aurora1hJob, auroraDeliveryRetryJob, auroraRebookJob,
     adrianaS1Job, adrianaS2Job, adrianaS3Job, adrianaRenewalJob,
     auroraD1Job, auroraD3Job, auroraReminder24hJob, auroraReminder2hJob,
     auroraReminder10minJob, auroraNoShowJob, auroraUpsellJob, auroraPaymentJob,

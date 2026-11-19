@@ -33,3 +33,4 @@ coverage/
 *.bak
 logs/
 *.txt
+enzo-preview/

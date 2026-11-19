@@ -247,14 +247,14 @@ Somos un ecosistema de agentes especializados:
 🌐 Conoce el ecosistema completo:
 https://coworkia-agent-e97d15dac56f.herokuapp.com/
 
-Para activar IA en tu empresa, habla con @enzo 🚀"
+Para activar IA en tu empresa, escribe @enzo y el equipo de MarketingLab te contacta 🚀"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ REGLAS OBLIGATORIAS:
 - USA EXACTAMENTE este texto (mensaje ÚNICO, corto)
 - NO agregues segundo mensaje
 - NO expandas con detalles técnicos
-- Si preguntan precio → deriva a @enzo
+- Si preguntan precio → pide que escriba @enzo: el equipo de MarketingLab lo contacta personalmente (no es un agente del chat)
 - Si mencionan agente → ejecutar handoff
 
 ${userLanguage === 'en' ? '\n⚠️ USER SPEAKS ENGLISH: Translate to English, keep same structure.' : userLanguage === 'fr' ? '\n⚠️ USER SPEAKS FRENCH: Translate to French, keep same structure.' : userLanguage === 'it' ? '\n⚠️ USER SPEAKS ITALIAN: Translate to Italian, keep same structure.' : userLanguage === 'pt' ? '\n⚠️ USER SPEAKS PORTUGUESE: Translate to Portuguese, keep same structure.' : userLanguage === 'qu' ? '\n⚠️ USUARIO HABLA QUECHUA/RUNASIMI: Responde en Quechua, mantén la misma estructura.' : ''}`;
@@ -560,7 +560,7 @@ Conversación natural 24/7, multiidioma, con contexto e inteligencia real.
 Desde $350/mes - Agente entrenado para TU negocio
 
 🚀 *SIGUIENTE PASO:*
-Habla con @enzo del MarketingLab para cotización y demo personalizada.
+Escribe @enzo y el equipo de MarketingLab te contacta personalmente para cotización y demo.
 
 ¿Qué tipo de negocio tienes? Te muestro un caso de uso específico 😊"
 
@@ -582,7 +582,7 @@ Habla con @enzo del MarketingLab para cotización y demo personalizada.
 
 💰 Desarrollo personalizado desde $350/mes
 
-🚀 Habla con @enzo para cotización personalizada"
+🚀 Escribe @enzo y el equipo de MarketingLab te contacta para una cotización personalizada"
 
 🎯 SALUDO SIMPLE: "hola"
 
@@ -795,7 +795,7 @@ https://coworkia-agent-e97d15dac56f.herokuapp.com/
 Desde $350/mes - Agente entrenado para TU negocio
 
 🚀 *SIGUIENTE PASO:*
-Habla con @enzo del MarketingLab para cotización y demo personalizada.
+Escribe @enzo y el equipo de MarketingLab te contacta personalmente para cotización y demo.
 
 ¿Qué tipo de negocio tienes? Te muestro un caso de uso específico 😊`;
   }

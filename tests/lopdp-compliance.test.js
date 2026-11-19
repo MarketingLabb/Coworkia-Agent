@@ -530,15 +530,14 @@ describe('Clientes recurrentes — Uso de datos sin consentimiento', () => {
 
     const FOLLOWUP_QUERIES_WITHOUT_CONSENT = [
       'adriana-followup-service.js — findLeadsInWindow()',
-      'enzo-followup-service.js — findLeadsForEnzoD1Followup()',
       'aluna-followup-service.js — sendD1Followups()',
       'aurora-followup-service.js — findReservationsForOneHourFollowup()',
       'paula-followup-service.js — processPaulaFollowUps()',
       'follow-up-service.js — processFollowUps()',
     ];
 
-    // All 6 followup services lack consent checking
-    expect(FOLLOWUP_QUERIES_WITHOUT_CONSENT).toHaveLength(6);
+    // All 5 followup services lack consent checking
+    expect(FOLLOWUP_QUERIES_WITHOUT_CONSENT).toHaveLength(5);
   });
 });
 

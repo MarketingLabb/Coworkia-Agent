@@ -8,7 +8,7 @@
  * 3. Los endpoints devuelven 404 si el lead no existe o no tiene teléfono.
  * 4. Los endpoints devuelven 403 si el lead fue creado por el administrador (TEST_LEAD).
  *
- * Agentes cubiertos: Axel, Paula, Adriana, Gabi, Enzo
+ * Agentes cubiertos: Axel, Paula, Adriana, Gabi
  */
 
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
@@ -53,7 +53,6 @@ const axelRouter    = (await import('../../src/express-servidor/endpoints-api/ax
 const paulaRouter   = (await import('../../src/express-servidor/endpoints-api/paula-dashboard.js')).default;
 const adrianaRouter = (await import('../../src/express-servidor/endpoints-api/adriana-dashboard.js')).default;
 const gabiRouter    = (await import('../../src/express-servidor/endpoints-api/gabi-dashboard.js')).default;
-const enzoRouter    = (await import('../../src/express-servidor/endpoints-api/enzo-dashboard.js')).default;
 
 // ─── App factory ─────────────────────────────────────────────────────────────
 function buildApp(prefix, router) {
@@ -68,7 +67,6 @@ const apps = {
   paula:   buildApp('/api/paula',   paulaRouter),
   adriana: buildApp('/api/adriana', adrianaRouter),
   gabi:    buildApp('/api/gabi',    gabiRouter),
-  enzo:    buildApp('/api/enzo',    enzoRouter),
 };
 
 // ─── Fixtures de leads ───────────────────────────────────────────────────────
@@ -92,11 +90,6 @@ const LEADS = {
     normal:  { consultation_code: 'GAB-001', phone: CLIENT_PHONE, client_name: 'Pedro Cliente', consultation_type: 'laboral', company: 'Empresa SA' },
     admin:   { consultation_code: 'GAB-ADM', phone: ADMIN_PHONE,  client_name: 'Diego Test' },
     no_phone:{ consultation_code: 'GAB-NOP', phone: null },
-  },
-  enzo: {
-    normal:  { project_code: 'ENZ-001', user_phone: CLIENT_PHONE, client_name: 'Sofía Cliente', project_type: 'branding', company: 'Mi Empresa', proposal_amount: 1500.00 },
-    admin:   { project_code: 'ENZ-ADM', user_phone: ADMIN_PHONE,  client_name: 'Diego Test' },
-    no_phone:{ project_code: 'ENZ-NOP', user_phone: null },
   },
 };
 
@@ -269,51 +262,6 @@ describe('📲 Gabi — POST /api/gabi/leads/:code/send-wa', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ENZO — send-reminder
-// ═════════════════════════════════════════════════════════════════════════════
-describe('📲 Enzo — POST /api/enzo/projects/:code/send-reminder', () => {
-
-  test('envía WA al teléfono del cliente, no al de admin', async () => {
-    db.get.mockResolvedValueOnce(LEADS.enzo.normal);
-    const res = await request(apps.enzo)
-      .post('/api/enzo/projects/ENZ-001/send-reminder');
-
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(enviarWhatsApp).toHaveBeenCalledTimes(1);
-    const [destPhone] = enviarWhatsApp.mock.calls[0];
-    expect(destPhone).toBe(CLIENT_PHONE);
-    expect(destPhone.replace(/\D/g, '')).not.toBe(ADMIN_NORM);
-  });
-
-  test('devuelve 403 si el lead pertenece al administrador (TEST_LEAD)', async () => {
-    db.get.mockResolvedValueOnce(LEADS.enzo.admin);
-    const res = await request(apps.enzo)
-      .post('/api/enzo/projects/ENZ-ADM/send-reminder');
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('TEST_LEAD');
-    expect(enviarWhatsApp).not.toHaveBeenCalled();
-  });
-
-  test('devuelve 404 si el lead no existe', async () => {
-    db.get.mockResolvedValueOnce(null);
-    const res = await request(apps.enzo)
-      .post('/api/enzo/projects/NOTEXIST/send-reminder');
-    expect(res.status).toBe(404);
-    expect(enviarWhatsApp).not.toHaveBeenCalled();
-  });
-
-  test('devuelve 404 si el lead no tiene teléfono', async () => {
-    db.get.mockResolvedValueOnce(LEADS.enzo.no_phone);
-    const res = await request(apps.enzo)
-      .post('/api/enzo/projects/ENZ-NOP/send-reminder');
-    expect(res.status).toBe(404);
-    expect(enviarWhatsApp).not.toHaveBeenCalled();
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
 // Guard desactivado cuando ADMIN_PHONE no está configurado
 // ═════════════════════════════════════════════════════════════════════════════
 describe('🛡️ Guard: sin ADMIN_PHONE configurado', () => {
@@ -340,22 +288,6 @@ describe('👔 Boss-quotes: user_phone=admin pero phone=cliente', () => {
     db.get.mockResolvedValueOnce(bossLead);
     const res = await request(apps.axel)
       .post('/api/axel/quotes/AXL-BOSS-001/send-reminder');
-
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(enviarWhatsApp).toHaveBeenCalledTimes(1);
-    const [destPhone] = enviarWhatsApp.mock.calls[0];
-    expect(destPhone).toBe(CLIENT_PHONE);
-  });
-
-  test('Enzo boss-quote envía al phone del cliente, no al user_phone admin', async () => {
-    const bossLead = {
-      project_code: 'ENZ-BOSS-001', user_phone: ADMIN_PHONE, phone: CLIENT_PHONE,
-      client_name: 'Pablo Guerrero', project_type: 'branding', company: 'Guerrero SA',
-    };
-    db.get.mockResolvedValueOnce(bossLead);
-    const res = await request(apps.enzo)
-      .post('/api/enzo/projects/ENZ-BOSS-001/send-reminder');
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);

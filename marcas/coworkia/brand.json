@@ -1,0 +1,97 @@
+{
+  "slug": "coworkia",
+  "nombre": "coWorkia",
+  "descripcion": "Coworking y business center en Quito Norte. Espacios de trabajo flexibles: hot desk, membresías mensuales, oficina virtual y sala de reuniones.",
+  "slogan": "Espacios que inspiran",
+  "ubicacion": "Whymper 403, Edificio Finistere, Planta Baja — Quito, Ecuador",
+  "horario": "Lunes a viernes, 8:30 AM – 6:00 PM",
+  "whatsapp": "+593 99 483 7117",
+  "publico": [
+    "Freelancers y profesionales independientes de Quito",
+    "Emprendedores y startups que necesitan un espacio profesional sin pagar una oficina completa",
+    "Equipos remotos y personas que trabajan desde casa y necesitan salir de casa para concentrarse",
+    "Empresas que necesitan dirección comercial (oficina virtual) o una sala para reuniones con clientes"
+  ],
+  "propuesta_de_valor": [
+    "Trabajas en un espacio profesional, tranquilo y bien ubicado en Quito Norte",
+    "WiFi de alta velocidad y café incluidos",
+    "Sin contratos largos: pagas por horas o por mes",
+    "Comunidad de profesionales y agentes con IA que te atienden por WhatsApp"
+  ],
+  "servicios": [
+    {
+      "nombre": "Primera visita",
+      "precio": "Gratis: 2 horas de Hot Desk con reserva previa"
+    },
+    {
+      "nombre": "Hot Desk",
+      "precio": "$10 por 2 horas"
+    },
+    {
+      "nombre": "Plan 10",
+      "precio": "$67 al mes (10 días + 1 gratis)"
+    },
+    {
+      "nombre": "Plan 20",
+      "precio": "$99 al mes (20 días + 2 gratis)"
+    },
+    {
+      "nombre": "Oficina Virtual",
+      "precio": "$365 al año"
+    },
+    {
+      "nombre": "Sala de reuniones",
+      "precio": "$30 por 2 horas, máximo 4 personas"
+    },
+    {
+      "nombre": "Estacionamiento",
+      "precio": "$35 al mes, solo con plan mensual"
+    }
+  ],
+  "colores": {
+    "primario": "#047857",
+    "primario_oscuro": "#065F46",
+    "acento": "#F59E0B",
+    "oscuro": "#0A0D12",
+    "claro": "#ECFDF5",
+    "blanco": "#FFFFFF"
+  },
+  "tipografia": "Sans serif moderna y redondeada (estilo Nunito / Poppins), títulos en negrita, sin letras decorativas",
+  "estilo_visual": [
+    "Fotografía realista y luminosa de espacios de trabajo modernos, plantas, madera clara, luz natural",
+    "Personas latinoamericanas reales trabajando, colaborando o tomando café (nunca poses forzadas)",
+    "Composición limpia con espacio libre para el titular; máximo 1 idea por arte",
+    "Verde Coworkia como color dominante en bloques, franjas o fondos; ámbar solo para resaltar (precio, CTA)",
+    "Nada de estética 'stock' genérica, collages recargados ni degradados neón"
+  ],
+  "tono": [
+    "Cercano, optimista y profesional; tuteo",
+    "Frases cortas y concretas; beneficios antes que características",
+    "Humor ligero cuando aplique (vida del freelancer, trabajar en pijama, el WiFi de la casa)",
+    "Español de Ecuador neutro, sin modismos de otros países"
+  ],
+  "no_hacer": [
+    "No inventar promociones, descuentos ni precios que no estén en esta ficha",
+    "No prometer servicios que no estén en esta ficha",
+    "No usar logos o marcas de terceros",
+    "No escribir textos largos dentro del arte: titular de máximo 7 palabras"
+  ],
+  "cta_preferidos": [
+    "Escríbenos por WhatsApp",
+    "Reserva tu espacio hoy",
+    "Ven a conocernos",
+    "Primera visita, conversemos"
+  ],
+  "hashtags_base": [
+    "#Coworkia",
+    "#CoworkingQuito",
+    "#QuitoEmprende",
+    "#TrabajoRemoto"
+  ],
+  "logo": {
+    "claro": "logo-blanco.png",
+    "oscuro": "logo-oscuro.png"
+  },
+  "actualizado": "2026-11-19",
+  "notas": "Ficha armada por Claude a partir del logo, los colores de los correos y los datos del sistema. Diego: corrige lo que no te guste."
+}

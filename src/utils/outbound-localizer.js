@@ -32,9 +32,12 @@ let deps = {
   },
 };
 
+let depsOverridden = false;
+
 /** Solo para tests: reemplaza la carga de idioma y la traducción. */
 export function __setLocalizerDeps(overrides) {
   deps = { ...deps, ...overrides };
+  depsOverridden = true;
   translationCache.clear();
 }
 
@@ -60,6 +63,8 @@ export async function localizeOutgoing(userId, text, opts = {}) {
   try {
     if (!text || typeof text !== 'string' || text.trim().length < 4) return text;
     if (process.env.OUTBOUND_TRANSLATION === 'off') return text;
+    // En la suite de tests no se consulta BD ni OpenAI (salvo tests del propio localizador)
+    if (process.env.NODE_ENV === 'test' && !depsOverridden) return text;
 
     const lang = opts.language || await withTimeout(deps.loadLanguage(userId), 3000);
     if (!lang || lang === 'es') return text;
