@@ -80,7 +80,7 @@ const PLAN_DETAILS = {
   }
 };
 
-function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDate, totalAmount, cashAmount, canjeAmount, canjeDescription, wifiCode }) {
+function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDate, totalAmount, cashAmount, canjeAmount, canjeDescription, wifiCode, isRenewal = false }) {
   const plan = PLAN_DETAILS[membershipType] || PLAN_DETAILS['Plan 20'];
 
   const formatDate = (d) => new Date(d).toLocaleDateString('es-EC', {
@@ -105,7 +105,7 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <title>Bienvenida a Coworkia — ${membershipCode}</title>
+  <title>${isRenewal ? 'Renovación' : 'Bienvenida a'} Coworkia — ${membershipCode}</title>
   <style>@media(prefers-color-scheme:dark){body{background-color:#f3f4f6!important}.em-wrap{background-color:#fff!important;color:#1f2937!important}}</style>
 </head>
 <body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -129,10 +129,9 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
 
       <!-- Saludo personalizado -->
       <div style="text-align:center;margin-bottom:25px;">
-        <h2 style="color:#1f2937;font-size:22px;margin:0 0 10px;">¡Tu membresía está activa! 🎉</h2>
+        <h2 style="color:#1f2937;font-size:22px;margin:0 0 10px;">${isRenewal ? '¡Gracias por renovar! 💚' : '¡Tu membresía está activa! 🎉'}</h2>
         <p style="color:#6B7280;font-size:15px;margin:0;line-height:1.6;">
-          Hola <strong style="color:#1f2937;">${memberName}</strong>, estamos felices de tenerte en nuestra comunidad.<br>
-          Tu espacio de trabajo ya está listo — aquí está todo lo que necesitas.
+          Hola <strong style="color:#1f2937;">${memberName}</strong>, ${isRenewal ? 'gracias por seguir siendo parte de nuestra comunidad.<br>Tu membresía ya está renovada — aquí está el resumen de tu nuevo periodo.' : 'estamos felices de tenerte en nuestra comunidad.<br>Tu espacio de trabajo ya está listo — aquí está todo lo que necesitas.'}
         </p>
       </div>
 
@@ -140,7 +139,7 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
       <div style="background-color:rgba(4,120,87,0.08);background:linear-gradient(135deg,rgba(4,120,87,0.08),rgba(6,95,70,0.12));border-left:4px solid #047857;border-radius:12px;padding:22px 25px;margin:0 0 20px;text-align:center;box-shadow:0 2px 8px rgba(4,120,87,0.15);">
         <div style="color:#047857;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px;">Número de Contrato</div>
         <div style="color:#065F46;font-size:36px;font-weight:900;letter-spacing:4px;margin:0 0 6px;">${membershipCode}</div>
-        <div style="color:#6B7280;font-size:12px;">Preséntalo en recepción — te lo pedirán la primera vez</div>
+        <div style="color:#6B7280;font-size:12px;">${isRenewal ? 'Tu nuevo número de contrato para este periodo' : 'Preséntalo en recepción — te lo pedirán la primera vez'}</div>
       </div>
 
       <!-- Detalles del plan -->
@@ -165,7 +164,7 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
               <td style="color:#374151;font-weight:600;padding:8px 0;border-bottom:1px solid #F3F4F6;">${plan.price}</td>
             </tr>
             <tr>
-              <td style="color:#6B7280;padding:8px 0;vertical-align:top;border-bottom:1px solid #F3F4F6;">Inicio de membresía</td>
+              <td style="color:#6B7280;padding:8px 0;vertical-align:top;border-bottom:1px solid #F3F4F6;">${isRenewal ? 'Inicio del nuevo periodo' : 'Inicio de membresía'}</td>
               <td style="color:#374151;padding:8px 0;border-bottom:1px solid #F3F4F6;">${startDate ? formatDate(startDate) : 'Siguiente día hábil'}</td>
             </tr>
             <tr>
@@ -187,7 +186,7 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
       <!-- WiFi — Portal cautivo Coworkia -->
       <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;padding:20px;margin:0 0 20px;">
         <div style="color:#047857;font-size:16px;font-weight:700;margin-bottom:12px;">📡 Acceso WiFi — Portal Cautivo</div>
-        <p style="color:#374151;margin:0 0 14px;font-size:14px;line-height:1.6;">Tu membresía incluye acceso a internet en Coworkia. Cuando llegues por primera vez, el staff activa tu acceso personalmente.</p>
+        <p style="color:#374151;margin:0 0 14px;font-size:14px;line-height:1.6;">${isRenewal ? 'Tu acceso a internet en Coworkia continúa con tu renovación. Si necesitas reactivarlo, el staff te ayuda en recepción.' : 'Tu membresía incluye acceso a internet en Coworkia. Cuando llegues por primera vez, el staff activa tu acceso personalmente.'}</p>
         <div style="background:white;border-radius:10px;padding:16px;border:1px solid #D1FAE5;">
           <table style="width:100%;font-size:14px;border-collapse:collapse;">
             <tr>
@@ -234,9 +233,9 @@ function buildWelcomeHTML({ memberName, membershipType, membershipCode, startDat
 
       <!-- CTA WhatsApp — persuasivo y contextual al momento post-pago -->
       <div style="text-align:center;margin:25px 0 30px;">
-        <p style="color:#374151;font-size:14px;margin:0 0 6px;font-weight:600;">¿Todo listo para tu primer día?</p>
-        <p style="color:#6B7280;font-size:13px;margin:0 0 16px;line-height:1.5;">Escríbeme ahora y coordinamos la hora de llegada — quiero asegurarme de que todo esté perfecto.</p>
-        <a href="https://wa.me/593994837117?text=${encodeURIComponent('@aluna soy ' + memberName + ', acabo de confirmar mi ' + membershipType + ' (' + membershipCode + ') — ¿a qué hora puedo llegar mañana para mi primer día?')}" style="background-color:#047857;background:linear-gradient(135deg,#047857,#065F46);color:white;padding:15px 36px;text-decoration:none;border-radius:25px;font-weight:700;display:inline-block;box-shadow:0 4px 12px rgba(4,120,87,0.35);font-size:15px;letter-spacing:0.3px;">¿Cuándo empiezo mi primer día? →</a>
+        <p style="color:#374151;font-size:14px;margin:0 0 6px;font-weight:600;">${isRenewal ? '¿Necesitas algo para este nuevo periodo?' : '¿Todo listo para tu primer día?'}</p>
+        <p style="color:#6B7280;font-size:13px;margin:0 0 16px;line-height:1.5;">${isRenewal ? 'Escríbeme cuando quieras — sigo aquí para que todo esté perfecto.' : 'Escríbeme ahora y coordinamos la hora de llegada — quiero asegurarme de que todo esté perfecto.'}</p>
+        <a href="https://wa.me/593994837117?text=${encodeURIComponent(isRenewal ? '@aluna soy ' + memberName + ', acabo de renovar mi ' + membershipType + ' (' + membershipCode + ')' : '@aluna soy ' + memberName + ', acabo de confirmar mi ' + membershipType + ' (' + membershipCode + ') — ¿a qué hora puedo llegar mañana para mi primer día?')}" style="background-color:#047857;background:linear-gradient(135deg,#047857,#065F46);color:white;padding:15px 36px;text-decoration:none;border-radius:25px;font-weight:700;display:inline-block;box-shadow:0 4px 12px rgba(4,120,87,0.35);font-size:15px;letter-spacing:0.3px;">${isRenewal ? 'Escribir a Aluna →' : '¿Cuándo empiezo mi primer día? →'}</a>
         <p style="color:#9CA3AF;font-size:12px;margin:12px 0 0;">Whymper 403, Edificio Finistere - PB, Quito · secretaria.coworkia@gmail.com</p>
       </div>
 
@@ -286,6 +285,9 @@ export async function sendAlunaWelcomeEmail(lead, payment, composite = null, wif
   console.log('[ALUNA-WELCOME] - Plan:', lead.membership_type);
   console.log('[ALUNA-WELCOME] - Contrato:', lead.membership_code);
 
+  // Renovación creada por la secuencia de Aluna: mismo correo, textos de "gracias por renovar"
+  const isRenewal = !!lead.renewal_of_lead_id;
+
   const htmlContent = buildWelcomeHTML({
     memberName:       clientName,
     membershipType:   lead.membership_type,
@@ -295,14 +297,17 @@ export async function sendAlunaWelcomeEmail(lead, payment, composite = null, wif
     cashAmount:       composite?.cashAmount  ?? payment?.amount ?? 0,
     canjeAmount:      composite?.canjeAmount ?? 0,
     canjeDescription: composite?.canjeDescription ?? '',
-    wifiCode
+    wifiCode,
+    isRenewal
   });
 
   const result = await sendEmail({
     from:    '"Aluna - Coworkia Membresías" <noreply@coworkia.ec>',
     to:      lead.email,
     cc:      getAdminCC(),
-    subject: `🎉 ¡Bienvenida a Coworkia, ${lead.client_name || lead.full_name}! — Tu ${lead.membership_type} está activa · ${lead.membership_code}`,
+    subject: isRenewal
+      ? `💚 ¡Gracias por renovar, ${lead.client_name || lead.full_name}! — Tu ${lead.membership_type} está activa · ${lead.membership_code}`
+      : `🎉 ¡Bienvenida a Coworkia, ${lead.client_name || lead.full_name}! — Tu ${lead.membership_type} está activa · ${lead.membership_code}`,
     html:    htmlContent
   });
 
