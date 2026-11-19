@@ -13,19 +13,19 @@
  * 3. analyzeDocument() → orquestador principal
  */
 
-import { analyzeImage } from '../servicios-ia/openai.js';
+import { analyzeMedia } from '../servicios-ia/openai.js';
 import { loggers } from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPTS ESPECIALIZADOS VISION AI
 // ═══════════════════════════════════════════════════════════════════════════
 
-const PROMPT_DETECT_TYPE = `Eres un clasificador de documentos ecuatorianos. Analiza esta imagen y determina QUÉ TIPO de documento es.
+const PROMPT_DETECT_TYPE = `Eres un clasificador de documentos ecuatorianos. Analiza este documento (foto o PDF) y determina QUÉ TIPO de documento es.
 
 Responde SOLO con UNA palabra:
 
 "cedula" si es cédula de identidad ecuatoriana (documento azul/verde con foto y 10 dígitos)
-"matricula" si es matrícula vehicular (documento con placa, marca/modelo de vehículo)
+"matricula" si es matrícula vehicular o certificado de matrícula (documento con placa, marca/modelo de vehículo)
 "licencia" si es licencia de conducir (documento con categorías A/B/C/D/E)
 "otro" si no reconoces el documento
 
@@ -110,13 +110,16 @@ export async function detectDocumentType(imageUrl) {
   try {
     loggers.adriana.info('Detectando tipo de documento...');
 
-    const response = await analyzeImage(imageUrl, PROMPT_DETECT_TYPE, {
+    const response = await analyzeMedia(imageUrl, PROMPT_DETECT_TYPE, {
       model: 'gpt-4o',
       max_tokens: 10,
-      temperature: 0.1
+      temperature: 0.1,
+      detail: 'low'
     });
+    if (!response.success) throw new Error(response.error || 'Vision AI no respondió');
 
-    const detectedType = response.choices[0].message.content.trim().toLowerCase();
+    // Antes leía response.choices[...] pero analyzeImage devuelve { content }: fallaba SIEMPRE
+    const detectedType = String(response.content || '').trim().toLowerCase().replace(/[^a-záéíóú]/g, '').replace('cédula', 'cedula').replace('matrícula', 'matricula');
 
     if (!['cedula', 'matricula', 'licencia', 'otro'].includes(detectedType)) {
       loggers.adriana.warn('Tipo detectado no reconocido', { detectedType });
@@ -144,10 +147,11 @@ export async function extractCedula(imageUrl) {
   try {
     loggers.adriana.info('Extrayendo datos de cédula...');
 
-    const response = await analyzeImage(imageUrl, PROMPT_CEDULA, {
+    const response = await analyzeMedia(imageUrl, PROMPT_CEDULA, {
       model: 'gpt-4o',
       max_tokens: 300,
-      temperature: 0.1
+      temperature: 0.1,
+      json: true
     });
 
     const data = parseVisionResponse(response);
@@ -179,10 +183,11 @@ export async function extractMatricula(imageUrl) {
   try {
     loggers.adriana.info('Extrayendo datos de matrícula...');
 
-    const response = await analyzeImage(imageUrl, PROMPT_MATRICULA, {
+    const response = await analyzeMedia(imageUrl, PROMPT_MATRICULA, {
       model: 'gpt-4o',
       max_tokens: 500,
-      temperature: 0.1
+      temperature: 0.1,
+      json: true
     });
 
     const data = parseVisionResponse(response);
@@ -214,10 +219,11 @@ export async function extractLicencia(imageUrl) {
   try {
     loggers.adriana.info('Extrayendo datos de licencia...');
 
-    const response = await analyzeImage(imageUrl, PROMPT_LICENCIA, {
+    const response = await analyzeMedia(imageUrl, PROMPT_LICENCIA, {
       model: 'gpt-4o',
       max_tokens: 400,
-      temperature: 0.1
+      temperature: 0.1,
+      json: true
     });
 
     const data = parseVisionResponse(response);
@@ -344,7 +350,9 @@ export async function analyzeDocument(imageUrl, expectedType = null) {
  */
 function parseVisionResponse(response) {
   try {
-    const content = response.choices[0].message.content;
+    if (response && response.success === false) throw new Error(response.error || 'Vision AI no respondió');
+    // analyzeMedia/analyzeImage devuelven { content }; se acepta también el formato crudo de OpenAI
+    const content = response?.content ?? response?.choices?.[0]?.message?.content ?? '';
     
     // Extraer JSON si viene dentro de ```json ... ``` o ``` ... ```
     const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
@@ -363,17 +371,17 @@ function parseVisionResponse(response) {
 function validateCedula(data) {
   const errors = [];
 
+  if (data.cedula) data.cedula = String(data.cedula).replace(/\D/g, '');
   if (!data.cedula || !/^\d{10}$/.test(data.cedula)) {
     errors.push('Cédula debe tener exactamente 10 dígitos');
+  } else if (!isValidEcuadorianCedula(data.cedula)) {
+    errors.push('El número de cédula no es válido (dígito verificador). Envía una foto más nítida');
   }
 
   if (!data.nombres || data.nombres.length < 3) {
     errors.push('Nombre no válido o no legible');
   }
-
-  if (!data.provincia) {
-    errors.push('Provincia no detectada');
-  }
+  // La provincia no siempre aparece en la cédula nueva: no bloquea
 
   if (data.edad && (data.edad < 18 || data.edad > 100)) {
     errors.push('Edad fuera de rango válido (18-100)');
@@ -390,6 +398,8 @@ function validateCedula(data) {
  */
 function validateMatricula(data) {
   const errors = [];
+  if (data.placa) data.placa = String(data.placa).toUpperCase().replace(/\s+/g, '').replace(/^([A-Z]{3})(\d{3,4})$/, '$1-$2');
+  if (data.anio) data.anio = parseInt(data.anio, 10) || data.anio;
 
   if (!data.placa || data.placa.length < 6) {
     errors.push('Placa no válida o no legible');
@@ -650,4 +660,131 @@ export function calculateRiskScore(cedulaData, matriculaData, licenciaData = nul
     alerts,
     hasBlockingIssues: alerts.some(a => a.blocking === true)
   };
+}
+
+
+// ═══════════════════════════════════════════════════════
+// VALIDACIÓN DE CÉDULA ECUATORIANA (módulo 10)
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Valida una cédula ecuatoriana: provincia 01–24 (o 30 para extranjeros),
+ * tercer dígito < 6 y dígito verificador por módulo 10.
+ */
+export function isValidEcuadorianCedula(cedula) {
+  const c = String(cedula || '').replace(/\D/g, '');
+  if (!/^\d{10}$/.test(c)) return false;
+  const prov = parseInt(c.slice(0, 2), 10);
+  if (!((prov >= 1 && prov <= 24) || prov === 30)) return false;
+  if (parseInt(c[2], 10) >= 6) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    let d = parseInt(c[i], 10) * (i % 2 === 0 ? 2 : 1);
+    if (d > 9) d -= 9;
+    sum += d;
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return check === parseInt(c[9], 10);
+}
+
+// ═══════════════════════════════════════════════════════
+// COTIZACIONES DE OTRAS ASEGURADORAS (foto o PDF)
+// ═══════════════════════════════════════════════════════
+
+const PROMPT_COMPETITOR = `Eres analista de seguros vehiculares en Ecuador. Este documento (foto o PDF) es una
+cotización o póliza de seguro vehicular. Puede traer UNA o VARIAS ofertas (por ejemplo, un cuadro
+comparativo de un bróker con varias aseguradoras o varios planes).
+
+Devuelve SOLO un JSON con esta forma:
+{
+  "ofertas": [
+    {
+      "aseguradora": "nombre de la aseguradora (ej: Seguros Equinoccial, Sweaden, AIG, Zurich, Mapfre, Chubb, Generali, Latina, Aseguradora del Sur)",
+      "plan": "nombre del plan o null",
+      "prima_total_anual": número en USD con impuestos (lo que paga el cliente al año) o null,
+      "prima_neta_anual": número en USD sin impuestos o null,
+      "valor_asegurado": número en USD o null,
+      "deducible": "texto tal como aparece (ej: '10% del siniestro, mínimo 1% del valor asegurado') o null",
+      "asistencia_vial": true/false/null,
+      "auto_sustituto": true/false/null,
+      "coberturas_destacadas": ["máximo 5, textos cortos"],
+      "vigencia_dias": número o null
+    }
+  ],
+  "vehiculo": { "marca": null, "modelo": null, "anio": null, "placa": null },
+  "es_cotizacion_de_seguro": true/false
+}
+
+REGLAS:
+- No inventes valores: si no aparece, usa null.
+- Los montos como números (sin $ ni comas). Si solo hay prima mensual, multiplica por 12 para la anual.
+- No confundas valor asegurado, deducible o primas: la prima es lo que se paga por el seguro.
+- Si el documento no es una cotización de seguro vehicular, "es_cotizacion_de_seguro": false y "ofertas": [].`;
+
+function toNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const n = parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Normaliza la respuesta de la IA a ofertas comparables.
+ * Exportada para tests.
+ */
+export function normalizeCompetitorOffers(parsed) {
+  const offers = Array.isArray(parsed?.ofertas) ? parsed.ofertas : [];
+  const seen = new Set();
+  const result = [];
+  for (const o of offers) {
+    const annual = toNumber(o.prima_total_anual) ?? toNumber(o.prima_neta_anual);
+    const name = String(o.aseguradora || '').trim();
+    if (!name && !annual) continue;
+    if (annual !== null && (annual < 50 || annual > 50000)) continue; // valor absurdo: probablemente leyó otra cifra
+    const key = `${name.toLowerCase()}|${String(o.plan || '').toLowerCase()}|${annual}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      nombre: name || 'Otra aseguradora',
+      plan: o.plan || 'Plan estándar',
+      prima_anual_num: annual,
+      prima_anual: annual !== null ? `$${annual.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : 'N/A',
+      prima_mensual: annual !== null ? `$${Math.round(annual / 12)}/mes` : 'N/A',
+      deducible: o.deducible || 'N/A',
+      valor_asegurado: toNumber(o.valor_asegurado),
+      asistencia: o.asistencia_vial === true ? '✅ 24/7' : o.asistencia_vial === false ? '❌' : '—',
+      auto_sustituto: o.auto_sustituto ?? null,
+      coberturas: Array.isArray(o.coberturas_destacadas) ? o.coberturas_destacadas.slice(0, 5) : [],
+      fuente: 'documento_cliente',
+    });
+  }
+  return result;
+}
+
+/**
+ * Lee una cotización de otra aseguradora (foto o PDF) y devuelve las ofertas encontradas.
+ * @param {string|string[]} mediaUrl
+ * @returns {Promise<{success:boolean, offers:Array, vehicle:object|null, isInsuranceQuote:boolean, error?:string}>}
+ */
+export async function extractCompetitorQuotes(mediaUrl) {
+  try {
+    const response = await analyzeMedia(mediaUrl, PROMPT_COMPETITOR, {
+      model: 'gpt-4o',
+      max_tokens: 1500,
+      temperature: 0,
+      json: true
+    });
+    const parsed = parseVisionResponse(response);
+    const offers = normalizeCompetitorOffers(parsed);
+    loggers.adriana.info('Cotización de competencia leída', { ofertas: offers.length });
+    return {
+      success: true,
+      offers,
+      vehicle: parsed?.vehiculo || null,
+      isInsuranceQuote: parsed?.es_cotizacion_de_seguro !== false,
+    };
+  } catch (error) {
+    loggers.adriana.error('Error leyendo cotización de competencia', {}, error);
+    return { success: false, offers: [], vehicle: null, isInsuranceQuote: false, error: error.message };
+  }
 }

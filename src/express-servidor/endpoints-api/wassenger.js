@@ -72,6 +72,7 @@ import { isPaulaBossQuoteCommand, parsePaulaQuoteData, sendPaulaCotizacion } fro
 import { detectEmailChange, isPaulaEmailRequest, findPropertyNumber, extractEmail, paulaCopy, buildQuoteCommand } from '../../servicios/paula-client-requests.js';
 import { saveBossQuote, generateBossQuoteCode } from '../../database/bossQuotesRepository.js';
 import { isAdrianaBossQuoteCommand, sendAdrianaCotizacion } from '../../servicios/adriana-cotizacion-email.js';
+import { detectDocumentType as detectAdrianaDocType, extractCedula as extractCedulaData, extractMatricula as extractMatriculaData, extractCompetitorQuotes } from '../../servicios/adriana-document-analyzer.js';
 import { analyzeInsuranceDocument, detectDocumentType, extractVehicleData, DOCUMENT_TYPES } from '../../servicios/insurance-document-analysis.js';
 import { calculateAllCoverages, formatPremiumForWhatsApp, inferVehicleCategory, VEHICLE_CATEGORIES, COVERAGE_TYPES, calculateVehiclePremium } from '../../servicios/adriana-quote-calculator.js';
 import { generateMultiQuotes, saveLeadQuotes, formatQuotesForTemplate } from '../../servicios/adriana-multi-quote-engine.js';
@@ -1643,7 +1644,19 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
     // Solo permitimos: text, image, audio, voice, ptt, video (en casos específicos)
     const BLOCKED_TYPES = ['sticker', 'document', 'location', 'contact', 'vcard', 'poll', 'live_location'];
     
-    if (BLOCKED_TYPES.includes(type)) {
+    // 📄 PDFs para Adriana (cotizaciones de otras aseguradoras, matrículas o cédulas escaneadas)
+    const isPdfDocument = type === 'document' && (
+      /pdf/i.test(data.media?.mime || data.media?.mimetype || '') ||
+      /\.pdf$/i.test(data.media?.filename || data.media?.name || '')
+    );
+    let pdfAllowedForAdriana = false;
+    if (isPdfDocument) {
+      const docProfile = await loadProfileWithTimeout(loadProfile, userId, 15000).catch(() => ({})) || {};
+      pdfAllowedForAdriana = docProfile.activeAgent === 'ADRIANA';
+      if (pdfAllowedForAdriana) console.log(`[WEBHOOK] 📄 PDF recibido para Adriana de ${userId}`);
+    }
+
+    if (BLOCKED_TYPES.includes(type) && !pdfAllowedForAdriana) {
       console.log(`[WEBHOOK] 🚫 Tipo bloqueado: ${type} de usuario ${userId}`);
       
       // Obtener idioma del usuario para mensaje personalizado
@@ -1922,7 +1935,7 @@ router.post('/webhooks/wassenger', validateWebhookSignature, rateLimitByPhone, a
     const processedText = replyContext.hasReplyContext ? replyContext.enrichedMessage : (text || '');
 
     // 📸 Si hay imagen pero no texto, usar placeholder descriptivo
-    const messageContent = processedText || (mediaUrl && type === 'image' ? '[Usuario envió imagen]' : '');
+    const messageContent = processedText || (mediaUrl && type === 'image' ? '[Usuario envió imagen]' : mediaUrl && type === 'document' ? '[Usuario envió PDF]' : '');
     
     // 🔒 FIX A7: Incrementar contador de mensajes desde último handoff (para cooldown)
     if (profile.lastHandoffCount !== undefined) {
@@ -3176,10 +3189,8 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
         if (!isMatriculaByText && (profile.activeAgent === 'AURORA' || !profile.activeAgent)) {
           try {
             console.log('[ADRIANA-AUTO] 🔍 Analizando imagen sin contexto de texto — verificando si es matrícula');
-            const quickAnalysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', {
-              documentType: DOCUMENT_TYPES.VEHICLE_REGISTRATION,
-            });
-            isMatriculaByVision = quickAnalysis.success && quickAnalysis.analysis;
+            // Clasificador: antes cualquier imagen analizada con éxito contaba como matrícula
+            isMatriculaByVision = (await detectAdrianaDocType(mediaUrl).catch(() => 'otro')) === 'matricula';
             if (isMatriculaByVision) {
               console.log('[ADRIANA-AUTO] ✅ Matrícula detectada por Vision AI');
             }
@@ -3210,14 +3221,21 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
       const quoteLead = await getQuoteLead(userId).catch(() => null);
 
       // ── Estado: gathering_id — espera foto de cédula ───────────────────────
-      if (quoteLead?.status === 'gathering_id' && mediaUrl && type === 'image') {
+      if (quoteLead?.status === 'gathering_id' && mediaUrl && isAdrianaMedia(type)) {
         console.log('[ADRIANA-FORM] 🪪 Cédula recibida — analizando...');
         try {
-          await enviarWhatsApp(userId, '📸 Recibí tu cédula. Analizando con IA... un momento 🔍');
-          const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.ID_CARD });
-          const idData = analysis.success && analysis.analysis
-            ? { raw: analysis.analysis.slice(0, 500), cedula: analysis.analysis.match(/\b\d{10}\b/)?.[0] || null }
-            : {};
+          await enviarWhatsApp(userId, `${type === 'document' ? '📄' : '📸'} Recibí tu cédula. Analizando con IA... un momento 🔍`);
+          let idData = {};
+          try {
+            const c = await extractCedulaData(mediaUrl);
+            idData = { cedula: c.cedula, nombres: c.nombres, fechaNacimiento: c.fechaNacimiento || null };
+          } catch (structErr) {
+            console.warn('[ADRIANA-FORM] ⚠️ Cédula no validada, uso análisis libre:', structErr.message);
+            const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.ID_CARD });
+            idData = analysis.success && analysis.analysis
+              ? { raw: analysis.analysis.slice(0, 500), cedula: analysis.analysis.match(/\b\d{10}\b/)?.[0] || null }
+              : {};
+          }
           const vd = quoteLead.vehicle_data || {};
           const brandModel = [vd.brand, vd.model].filter(Boolean).join(' ') || 'Vehículo';
           const year   = vd.year   || vd.vehicleYear   || '?';
@@ -3351,7 +3369,7 @@ REGLAS: nombre=solo nombre de persona. plan=detecta de contexto, si no hay plan 
     }
 
     // 🛡️ ADRIANA VEHICLE DOCUMENTS: Extraer datos vehiculares y cotizar automáticamente
-    if (mediaUrl && type === 'image' && profile.activeAgent === 'ADRIANA') {
+    if (mediaUrl && isAdrianaMedia(type) && profile.activeAgent === 'ADRIANA') {
       console.log('[ADRIANA] 🚗 Imagen recibida — analizando documento vehicular...');
       try {
         const docType = detectDocumentType(processedText || '');
@@ -4226,6 +4244,11 @@ router.post('/webhooks/wassenger/control', (req, res) => {
      → waiting_kyc → accepted
 ───────────────────────────────────────────────────────────── */
 
+/** Adriana acepta fotos y PDFs (los PDFs solo llegan aquí si el cliente está con Adriana). */
+function isAdrianaMedia(type) {
+  return type === 'image' || type === 'document';
+}
+
 async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, type, envelope }) {
   try {
     // ───────────────────────────────────────────────────────────────────────
@@ -4287,8 +4310,8 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
 
     // Si no existe lead con estado nuevo, crear al recibir matrícula o al iniciar con imagen
     if (!lead || !NEW_STATES.includes(lead?.status)) {
-      // Solo iniciar si es imagen (matrícula) o texto que inicia el flujo
-      if (mediaUrl && type === 'image') {
+      // Solo iniciar si es foto o PDF (matrícula) o texto que inicia el flujo
+      if (mediaUrl && isAdrianaMedia(type)) {
         const quoteCode = `ADR-${Date.now().toString(36).toUpperCase()}`;
         await createOrUpdateInsuranceLead({ quoteCode, userPhone: userId, status: 'waiting_matricula' });
         lead = await findLeadByPhone(userId).catch(() => null);
@@ -4302,15 +4325,26 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
     const quoteCode = lead.quote_code;
 
     // ── waiting_matricula — espera foto de matrícula ───────────────────────
-    if (status === 'waiting_matricula' && mediaUrl && type === 'image') {
-      await enviarWhatsApp(userId, '📸 Recibí tu matrícula. Analizando con IA... un momento 🔍');
-      const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.VEHICLE_REGISTRATION });
-      if (!analysis.success) {
-        await enviarWhatsApp(userId, '⚠️ No pude leer la matrícula.\n\nEnvíame los datos en texto:\n📋 *Marca, modelo, año y valor del vehículo*');
+    if (status === 'waiting_matricula' && mediaUrl && isAdrianaMedia(type)) {
+      await enviarWhatsApp(userId, `${type === 'document' ? '📄' : '📸'} Recibí tu matrícula. Analizando con IA... un momento 🔍`);
+      let vData = {};
+      try {
+        // Extractor estructurado (JSON validado): placa, marca, modelo, año, motor, chasis, propietario
+        const m = await extractMatriculaData(mediaUrl);
+        vData = {
+          brand: m.marca, model: m.modelo, year: m.anio, plate: m.placa, motor: m.motor, chasis: m.chasis,
+          owner_name: m.propietario, commercial_value: m.valorComercial || null,
+        };
+      } catch (structErr) {
+        console.warn('[ADRIANA] ⚠️ Extractor estructurado de matrícula falló, uso análisis libre:', structErr.message);
+        const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.VEHICLE_REGISTRATION });
+        const vd = analysis.success ? extractVehicleData(analysis.analysis) : { success: false };
+        vData = vd.success ? vd.data : {};
+      }
+      if (!vData.brand && !vData.plate) {
+        await enviarWhatsApp(userId, '⚠️ No pude leer la matrícula.\n\nEnvíame una foto más nítida (o el PDF), o escribe los datos:\n📋 *Marca, modelo, año y valor del vehículo*');
         return true;
       }
-      const vd = extractVehicleData(analysis.analysis);
-      const vData = vd.success ? vd.data : {};
       await createOrUpdateInsuranceLead({
         quoteCode,
         userPhone: userId,
@@ -4340,11 +4374,25 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
     }
 
     // ── waiting_cedula — espera foto de cédula (NO licencia) ──────────────
-    if (status === 'waiting_cedula' && mediaUrl && type === 'image') {
-      await enviarWhatsApp(userId, '📸 Recibí tu cédula. Verificando identidad... 🔍');
-      const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.ID_CARD });
-      const cedula = analysis.success ? (analysis.analysis?.match(/\b\d{10}\b/)?.[0] || null) : null;
-      const clientName = analysis.success ? (analysis.analysis?.match(/(?:nombre|name)[:\s]+([A-ZÁÉÍÓÚÑ ]+)/i)?.[1]?.trim() || profile.name || null) : (profile.name || null);
+    if (status === 'waiting_cedula' && mediaUrl && isAdrianaMedia(type)) {
+      await enviarWhatsApp(userId, `${type === 'document' ? '📄' : '📸'} Recibí tu cédula. Verificando identidad... 🔍`);
+      let cedula = null;
+      let clientName = profile.name || null;
+      try {
+        // JSON validado: 10 dígitos + dígito verificador (módulo 10) + nombre
+        const c = await extractCedulaData(mediaUrl);
+        cedula = c.cedula;
+        clientName = c.nombres || clientName;
+      } catch (structErr) {
+        console.warn('[ADRIANA] ⚠️ Cédula no validada:', structErr.message);
+        if (/verificador|10 dígitos/i.test(structErr.message)) {
+          await enviarWhatsApp(userId, '⚠️ No pude leer bien el número de tu cédula.\n\nEnvíame una foto más nítida (sin reflejos, de frente) o escribe tu número de cédula 🪪');
+          return true;
+        }
+        const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.ID_CARD });
+        cedula = analysis.success ? (analysis.analysis?.match(/\b\d{10}\b/)?.[0] || null) : null;
+        clientName = analysis.success ? (analysis.analysis?.match(/(?:nombre|name)[:\s]+([A-ZÁÉÍÓÚÑ ]+)/i)?.[1]?.trim() || clientName) : clientName;
+      }
 
       // ── C2: Validación cruzada cédula ↔ matrícula ──────────────────────
       try {
@@ -4372,7 +4420,7 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
         cedula ? `📋 Cédula: ${cedula}` : '',
         ``,
         `¿Tienes cotizaciones de otras aseguradoras?`,
-        `Envía las fotos (puedes enviar varias) o escribe *OMITIR* para continuar 📊`,
+        `Envía las fotos o el PDF (puedes enviar varios) o escribe *OMITIR* para continuar 📊`,
       ].filter(l => l !== '').join('\n');
       await enviarWhatsApp(userId, msg);
       await saveConversationMessage(userId, { role: 'assistant', content: msg, agent: 'ADRIANA' });
@@ -4382,27 +4430,41 @@ async function handleAdrianaFlow({ userId, profile, processedText, mediaUrl, typ
     // ── waiting_competitor — acepta fotos competencia o texto OMITIR ──────
     if (status === 'waiting_competitor') {
       const isOmit = processedText && /omitir|saltar|skip|no tengo|ninguna/i.test(processedText);
-      const isCompetitorImage = mediaUrl && type === 'image';
+      const isCompetitorImage = mediaUrl && isAdrianaMedia(type);
 
       if (isOmit || isCompetitorImage) {
         let competitorQuotes = lead.competitor_quotes || [];
 
         if (isCompetitorImage) {
-          await enviarWhatsApp(userId, '📸 Analizando cotización de la competencia... 🔍');
-          const analysis = await analyzeInsuranceDocument(mediaUrl, processedText || '', { documentType: DOCUMENT_TYPES.COMPETITOR_QUOTE || 'competitor_quote' });
-          if (analysis.success && analysis.analysis) {
-            const priceMatch = analysis.analysis.match(/\$[\d,]+(?:\.\d{2})?/);
-            const nameMatch  = analysis.analysis.match(/(?:aseguradora|empresa|compañía)[:\s]+([^\n,]+)/i);
-            competitorQuotes.push({
-              nombre: nameMatch?.[1]?.trim() || 'Competidor',
-              prima_anual: priceMatch?.[0] || 'N/A',
-              raw: analysis.analysis.slice(0, 300),
-            });
+          await enviarWhatsApp(userId, `${type === 'document' ? '📄' : '📸'} Analizando la cotización de la otra aseguradora... 🔍`);
+          // Antes: regex que tomaba el primer "$" del texto (a veces el valor asegurado o el deducible).
+          // Ahora: JSON con todas las ofertas del documento (un PDF de bróker puede traer varias).
+          const result = await extractCompetitorQuotes(mediaUrl);
+          let msg;
+          if (result.success && result.offers.length) {
+            for (const offer of result.offers) {
+              const dup = competitorQuotes.some(c => (c.nombre || '').toLowerCase() === offer.nombre.toLowerCase()
+                && (c.plan || '') === offer.plan && c.prima_anual === offer.prima_anual);
+              if (!dup) competitorQuotes.push(offer);
+            }
+            await saveCompetitorQuotes(quoteCode, competitorQuotes);
+            const lines = result.offers.map(o => `• *${o.nombre}*${o.plan && o.plan !== 'Plan estándar' ? ` (${o.plan})` : ''}: ${o.prima_anual}/año · deducible ${o.deducible}`);
+            const ourValue = Number(lead.commercial_value) || null;
+            const diffValue = result.offers.find(o => o.valor_asegurado && ourValue && Math.abs(o.valor_asegurado - ourValue) / ourValue > 0.1);
+            msg = [
+              `✅ Leí ${result.offers.length === 1 ? 'la cotización' : `${result.offers.length} ofertas`}:`,
+              ...lines,
+              diffValue ? `\nℹ️ Ojo: esa cotización usa un valor asegurado de $${diffValue.valor_asegurado.toLocaleString()} (nosotros $${ourValue.toLocaleString()}). Lo tendré en cuenta en el comparativo.` : '',
+              ``,
+              `¿Tienes más cotizaciones? Envía otra foto o PDF, o escribe *OMITIR* para continuar.`,
+            ].filter(l => l !== '').join('\n');
+          } else if (result.success && !result.isInsuranceQuote) {
+            msg = `🤔 Ese documento no parece una cotización de seguro vehicular.\n\nEnvía la cotización de la otra aseguradora (foto o PDF) o escribe *OMITIR* para continuar.`;
+          } else {
+            msg = `⚠️ No pude leer los valores de esa cotización.\n\nEnvía una foto más nítida o el PDF, o escríbeme *aseguradora y prima anual* (ej: Zurich $890). También puedes escribir *OMITIR*.`;
           }
-          await saveCompetitorQuotes(quoteCode, competitorQuotes);
-          // Ask for more or continue
-          const msg = `✅ Cotización de competencia registrada.\n\n¿Tienes más cotizaciones para comparar? Envía otra foto o escribe *OMITIR* para continuar.`;
           await enviarWhatsApp(userId, msg);
+          await saveConversationMessage(userId, { role: 'assistant', content: msg, agent: 'ADRIANA' });
           return true;
         }
 

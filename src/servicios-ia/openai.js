@@ -169,6 +169,59 @@ export async function analyzeImage(imageUrl, prompt, opts = {}) {
 }
 
 /**
+ * 📎 Analiza imágenes y/o PDFs (descargados y enviados en base64).
+ * A diferencia de analyzeImage, acepta PDFs y no expone la URL/token de Wassenger.
+ * @param {string|string[]} urls - URLs (o data URLs) de imágenes o PDFs
+ * @param {string} prompt
+ * @param {object} opts - { model, max_tokens, temperature, detail, json }
+ * @returns {Promise<{success:boolean, content:string|null, kinds?:string[], error?:string}>}
+ */
+export async function analyzeMedia(urls, prompt, opts = {}) {
+  const {
+    temperature = 0.1,
+    max_tokens = 800,
+    model = 'gpt-4o',
+    detail = 'high',
+    json = false,
+  } = opts;
+
+  try {
+    const { loadMedia, toOpenAIContentPart } = await import('./media-input.js');
+    const list = Array.isArray(urls) ? urls : [urls];
+    const medias = await Promise.all(list.map(u => loadMedia(u)));
+    const content = [{ type: 'text', text: prompt }, ...medias.map((m, i) => toOpenAIContentPart(m, { detail, filename: `documento-${i + 1}.pdf` }))];
+
+    return await openaiBreaker.execute(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      try {
+        const response = await client.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content }],
+          temperature,
+          max_tokens,
+          ...(json ? { response_format: { type: 'json_object' } } : {}),
+        }, { signal: controller.signal });
+        return {
+          success: true,
+          content: response.choices[0]?.message?.content?.trim() || '',
+          kinds: medias.map(m => m.kind),
+          usage: response.usage,
+        };
+      } catch (error) {
+        if (error.name === 'AbortError') throw new Error('Vision API timeout (60s)');
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
+  } catch (error) {
+    loggers.openai.error('Vision API error', { action: 'analyzeMedia' }, error);
+    return { success: false, error: error.message, content: null };
+  }
+}
+
+/**
  * 💳 Analiza comprobante de pago (SISTEMA COMPLETO - 20 PARÁMETROS)
  * 
  * Extrae datos críticos, importantes y adicionales de cualquier comprobante:

@@ -33,8 +33,15 @@ jest.unstable_mockModule('../src/database/database.js', () => ({
 }));
 
 // Mock OpenAI Vision AI to avoid real API calls in tests
+// (analyzeMedia devuelve { success, content } — el mock anterior devolvía el formato crudo
+//  de OpenAI y ocultaba que el analizador real fallaba siempre)
+const asContent = (raw) => ({ success: true, content: raw.choices[0].message.content });
 jest.unstable_mockModule('../src/servicios-ia/openai.js', () => ({
-  analyzeImage: jest.fn().mockImplementation(async (imageUrl, prompt) => {
+  analyzeMedia: jest.fn().mockImplementation(async (imageUrl, prompt) => asContent(await visionMock(imageUrl, prompt))),
+}));
+
+async function visionMock(imageUrl, prompt) {
+  {
     // Type detection (prompt contains "clasificador")
     if (prompt.includes('clasificador')) {
       if (imageUrl.includes('random_photo') || imageUrl.includes('invalid')) {
@@ -52,7 +59,7 @@ jest.unstable_mockModule('../src/servicios-ia/openai.js', () => ({
     if (prompt.includes('cédulas ecuatorianas')) {
       return { choices: [{ message: { content: JSON.stringify({
         nombres: 'JUAN PEREZ TEST',
-        cedula: '1712345678',
+        cedula: '1710034065',
         edad: 35,
         provincia: 'Pichincha',
         fechaNacimiento: '1990-06-15'
@@ -79,7 +86,7 @@ jest.unstable_mockModule('../src/servicios-ia/openai.js', () => ({
     if (prompt.includes('licencias de conducir')) {
       return { choices: [{ message: { content: JSON.stringify({
         nombres: 'JUAN PEREZ TEST',
-        cedula: '1712345678',
+        cedula: '1710034065',
         tipoLicencia: 'B',
         categoria: 'Vehículos livianos',
         vigenciaDesde: '2023-01-01',
@@ -90,8 +97,8 @@ jest.unstable_mockModule('../src/servicios-ia/openai.js', () => ({
       }) } }] };
     }
     return { choices: [{ message: { content: 'otro' } }] };
-  })
-}));
+  }
+}
 
 // Dynamic import AFTER mock registration
 const { 
