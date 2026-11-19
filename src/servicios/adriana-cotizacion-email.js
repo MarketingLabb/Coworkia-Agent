@@ -15,6 +15,7 @@ import { buildEmailTemplate } from './email-template-system.js';
 import { sendEmail, AGENT_FROM_NAMES, ADRIANA_FROM_EMAIL } from './email.js';
 import { calculateVehiclePremium, COVERAGE_TYPES, VEHICLE_CATEGORIES, inferVehicleCategory } from './adriana-quote-calculator.js';
 import { createOrUpdateInsuranceLead } from '../database/adrianaRepository.js';
+import { generateMultiQuotes, formatQuotesForTemplate } from './adriana-multi-quote-engine.js';
 
 const SEG_ADMIN_CC = process.env.ADRIANA_CC_EMAIL || 'info@segpopular.com';
 const ADMIN_WA     = (process.env.BOT_PHONE || '593994837117').replace('+', '');
@@ -116,6 +117,20 @@ export async function sendAdrianaCotizacion(mensajeCompleto, { quoteCode = '' } 
   const codeLabel = `${code} — `;
   const subject   = `Cotización 🛡️ ${codeLabel}${datos.vehicleBrand} ${datos.vehicleModel} ${datos.vehicleYear} · ${datos.nombre} | Adriana - SegPopular`;
 
+  // Comparativo: mismas aseguradoras activas que usa el flujo de WhatsApp.
+  // Si la BD no responde, el correo sale igual (solo VAZ).
+  let competitors = [];
+  try {
+    const allQuotes = await generateMultiQuotes({
+      commercialValue: Number(datos.commercialValue || 40000),
+      vehicleYear: Number(datos.vehicleYear) || new Date().getFullYear(),
+      vehicleCategory: 'liviano',
+    });
+    competitors = formatQuotesForTemplate(allQuotes).competitors;
+  } catch (err) {
+    console.warn('[ADRIANA-COTI] ⚠️ Sin comparativo multi-aseguradora:', err.message);
+  }
+
   // Usar template V2 (comparativo profesional)
   const html = buildEmailTemplate('ADRIANA', 'COMPARISON_V2', {
     nombre:            datos.nombre,
@@ -127,7 +142,7 @@ export async function sendAdrianaCotizacion(mensajeCompleto, { quoteCode = '' } 
     vaz_prima_mensual: `$${premium.monthly.toLocaleString()}`,
     vaz_deducible:     '7%',
     analisis_broker:   datos.intro_personalizada || `${datos.nombre?.split(' ')[0] || 'Cliente'}, analicé el mercado ecuatoriano y el Plan Elemental de VAZ Seguros es la mejor opción para tu ${[datos.vehicleBrand, datos.vehicleModel].filter(Boolean).join(' ')}. Asistencia 24/7, taller propio en Quito y hasta 12 meses para pagar.`,
-    competitors:       [],
+    competitors,
     fecha_cotizacion:  new Date().toLocaleDateString('es-EC'),
     bot_phone:         ADMIN_WA,
     adriana_email:     process.env.ADRIANA_EMAIL || '',
