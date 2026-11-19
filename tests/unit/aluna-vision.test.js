@@ -121,12 +121,12 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
      3️⃣ VALIDACIÓN DE MONTO (PLAN 10 - $150)
   ═══════════════════════════════════════════════════════════════ */
   
-  test('✅ Debe aprobar pago correcto Plan 10 ($180)', async () => {
+  test('✅ Debe aprobar pago correcto Plan 10 ($67)', async () => {
     mockAnalyzePaymentReceipt.mockResolvedValue({
       success: true,
       data: {
         transactionNumber: 'TRF2026012012345',
-        amount: 180.00,
+        amount: 67.00,
         currency: 'USD',
         transactionDate: recentDate,
         transactionTime: '10:30:00',
@@ -164,14 +164,14 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
     expect(result.success).toBe(true);
     expect(result.autoApproved).toBe(true);
     expect(result.message).toContain('PAGO VERIFICADO AUTOMÁTICAMENTE');
-    expect(result.message).toContain('$180');
+    expect(result.message).toContain('$67');
   });
 
   /* ═══════════════════════════════════════════════════════════════
-     4️⃣ VALIDACIÓN DE MONTO (PLAN 20 - $270)
+     4️⃣ VALIDACIÓN DE MONTO (PLAN 20 - $99)
   ═══════════════════════════════════════════════════════════════ */
   
-  test('✅ Debe aprobar pago correcto Plan 20 ($270)', async () => {
+  test('✅ Debe aprobar pago correcto Plan 20 ($99)', async () => {
     mockAnalyzePaymentReceipt.mockResolvedValue({
       success: true,
       data: {
@@ -257,8 +257,8 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
     expect(result.success).toBe(false);
     expect(result.rejected).toBe(true);
     expect(result.message).toContain('PROBLEMA CON EL COMPROBANTE');
-    expect(result.message).toContain('$180'); // Monto esperado
-    expect(result.message).toContain('$130'); // Diferencia
+    expect(result.message).toContain('$67'); // Monto esperado
+    expect(result.message).toContain('$17'); // Diferencia
   });
 
   /* ═══════════════════════════════════════════════════════════════
@@ -270,7 +270,7 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
       success: true,
       data: {
         transactionNumber: 'TRF2026012011111',
-        amount: 180.00,
+        amount: 67.00,
         currency: 'USD',
         transactionDate: recentDate,
         paymentMethod: 'transferencia_interbancaria',
@@ -316,7 +316,7 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
       success: true,
       data: {
         transactionNumber: 'BLUR123456',
-        amount: 180.00,
+        amount: 67.00,
         currency: 'USD',
         transactionDate: recentDate,
         paymentMethod: 'transferencia_interbancaria',
@@ -408,7 +408,7 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
       success: true,
       data: {
         transactionNumber: 'DUP789012', // Ya procesado
-        amount: 180.00,
+        amount: 67.00,
         currency: 'USD',
         transactionDate: recentDate,
         paymentMethod: 'payphone',
@@ -478,8 +478,8 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
    
    FUNCIONALIDADES:
    ✅ Procesa comprobantes de pago para 3 tipos de membresías:
-      - Plan 10 ($150/mes) - 10 días/mes
-      - Plan 20 ($270/mes) - 20 días/mes
+      - Plan 10 ($67/mes) - 10 días/mes
+      - Plan 20 ($99/mes) - 20 días/mes
       - Oficina Virtual ($450/año)
    ✅ Extrae 20+ parámetros con Vision AI
    ✅ Valida monto contra plan seleccionado
