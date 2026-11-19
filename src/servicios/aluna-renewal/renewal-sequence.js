@@ -10,6 +10,7 @@
 //  - Si el cliente está conversando (escribió hace <2h), espera.
 //  - Si Wassenger no confirma (timeout), NO se reintenta: mejor perder un aviso que duplicarlo.
 
+import { localizeOutgoing } from '../../utils/outbound-localizer.js';
 import * as defaultRepo from '../../database/renewalRepository.js';
 import { normalizePhoneEC } from '../../utils/validators.js';
 import { getPayphoneLink, getBankAccountInfo } from '../payment-calculator.js';
@@ -42,6 +43,7 @@ export async function sendWhatsApp(phone, message) {
   if (!token || !device) return { status: 'failed', error: 'WASSENGER_NOT_CONFIGURED' };
   const target = normalizePhoneEC(phone);
   if (!target) return { status: 'failed', error: 'INVALID_PHONE' };
+  message = await localizeOutgoing(phone, message); // 🌍 idioma del cliente
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WASSENGER_TIMEOUT_MS);

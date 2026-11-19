@@ -2,6 +2,7 @@
 // 🔔 Sistema de seguimiento automático - UNA vez, 2 horas post-transacción
 // + Follow-up específico de Aluna: 24h y 3 días post-consulta de membresías
 
+import { localizeOutgoing } from '../utils/outbound-localizer.js';
 import databaseService from '../database/database.js';
 import { normalizePhoneEC } from '../utils/validators.js';
 import reservationRepository from '../database/reservationRepository.js';
@@ -172,6 +173,8 @@ export async function sendFollowUpMessage(phoneNumber, message, agent = 'AURORA'
       console.error('[FOLLOW-UP] ❌ Credenciales de Wassenger no configuradas');
       return false;
     }
+
+    message = await localizeOutgoing(phoneNumber, message); // 🌍 idioma del cliente
     
     const response = await fetch(`https://api.wassenger.com/v1/messages`, {
       method: 'POST',
@@ -302,6 +305,7 @@ async function sendAlunaFollowUpMessage(prospect, message, followUpType) {
       console.warn(`[ALUNA-FOLLOWUP] ⚠️ Teléfono inválido, se omite envío: ${prospect.user_phone}`);
       return false;
     }
+    message = await localizeOutgoing(prospect.user_phone, message); // 🌍 idioma del cliente
 
     const response = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
@@ -512,6 +516,7 @@ async function sendRebookReminderMessage(reservation, message) {
       console.warn(`[AURORA-REBOOK] ⚠️ Teléfono inválido, se omite envío: ${reservation.user_phone}`);
       return false;
     }
+    message = await localizeOutgoing(reservation.user_phone, message); // 🌍 idioma del cliente
 
     const response = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',

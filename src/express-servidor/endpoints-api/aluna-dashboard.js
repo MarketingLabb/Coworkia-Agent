@@ -7,6 +7,7 @@
  * @date 2026-03-09
  */
 
+import { localizeOutgoing } from '../../utils/outbound-localizer.js';
 import express from 'express';
 import { normalizePhoneEC } from '../../utils/validators.js';
 import databaseService from '../../database/database.js';
@@ -587,6 +588,7 @@ router.post('/prospect/:phone/sendwa', async (req, res) => {
       message = `@aluna\nHola ${name} 👋\n\n¿Cómo estás? Hace unos días charlamos sobre ${plan} y quería hacer un último acercamiento 😊\n\n*Mi propuesta:* ven a Coworkia un día completo, completamente gratis.\n\n📍 Sin costo, de *8am a 7pm* — WiFi, café, hot desk, sala de reuniones.\nSolo di en recepción que eres invitada/o de Aluna 🏢\n\n¿Qué día de esta semana te queda bien? 🗓️`;
     }
 
+    message = await localizeOutgoing(phone, message); // 🌍 idioma del cliente
     const waResponse = await fetch('https://api.wassenger.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },

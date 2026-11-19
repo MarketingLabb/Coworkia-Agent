@@ -60,6 +60,7 @@ import {
 } from '../../perfiles-interacciones/memoria-sqlite.js';
 
 import { loadProfileWithTimeout } from '../../utils/timeout-helpers.js';
+import { localizeOutgoing } from '../../utils/outbound-localizer.js';
 import { dispatchHttpRequest } from '../../servicios/external-dispatcher.js';
 import { detectKnowledgeGap } from '../../servicios/knowledge-gap-detector.js';
 import { clearJustConfirmed, clearPendingConfirmation, getPendingConfirmation } from '../../servicios/reservation-state.js';
@@ -851,6 +852,10 @@ async function enviarWhatsApp(numero, mensaje) {
     console.warn('[WASSENGER] Intento de enviar mensaje al propio bot bloqueado');
     return { ok: false, error: 'SELF_MESSAGE_BLOCKED' };
   }
+
+  // 🌍 Mensajes fijos en español → idioma del cliente (en, fr, it, pt, qu).
+  // No toca a clientes en español ni textos que ya están en su idioma.
+  mensaje = await localizeOutgoing(numero, mensaje);
 
   try {
     // ✅ Registrar mensaje ANTES de enviar (prevenir race condition)

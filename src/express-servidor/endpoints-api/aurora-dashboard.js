@@ -7,6 +7,7 @@
  * @date 2026-03-09
  */
 
+import { localizeOutgoing } from '../../utils/outbound-localizer.js';
 import express from 'express';
 import databaseService from '../../database/database.js';
 import { sendOneHourFollowup, sendRebookingReminder } from '../../servicios/aurora-followup-service.js';
@@ -636,7 +637,8 @@ router.post('/send-campaign', async (req, res) => {
 
     for (const phone of phones) {
       try {
-        const auroraMsg = message.startsWith('@aurora') ? message : `@aurora\n${message}`;
+        const localized = await localizeOutgoing(phone, message); // 🌍 idioma del cliente
+        const auroraMsg = localized.startsWith('@aurora') ? localized : `@aurora\n${localized}`;
         const body = JSON.stringify({ phone, message: auroraMsg, device: WASSENGER_DEVICE_ID });
         const waRes = await fetch('https://api.wassenger.com/v1/messages', {
           method: 'POST',
@@ -817,7 +819,7 @@ router.patch('/reservations/:id/register-payment', async (req, res) => {
         const waRes = await fetch('https://api.wassenger.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Token': WASSENGER_TOKEN },
-          body: JSON.stringify({ phone: reservation.user_phone, message: waMsg, device: WASSENGER_DEVICE_ID })
+          body: JSON.stringify({ phone: reservation.user_phone, message: await localizeOutgoing(reservation.user_phone, waMsg), device: WASSENGER_DEVICE_ID })
         });
         const waJson = await waRes.json();
         waSent = !!waJson.id;

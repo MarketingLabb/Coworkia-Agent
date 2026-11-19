@@ -256,7 +256,8 @@ export async function processGenericPositiveConfirmation(userId, agentName, form
       leadId,
       userName,
       userEmail,
-      formData
+      formData,
+      userLanguage: userProfile?.preferredLanguage || 'es' // 🌍 email en el idioma del cliente
     };
     
     // 3. Enviar notificaciones (email + calendar) en paralelo
@@ -417,15 +418,23 @@ async function saveLeadToDatabase(agentName, userId, formData) {
  * 📧 Envía email al agente humano y al cliente
  */
 async function sendGenericEmailNotification(data) {
-  const { agentName, userName, userEmail, formData } = data;
+  const { agentName, userName, userEmail, formData, userLanguage = 'es' } = data;
   
-  // Email al cliente confirmando recepción
+  // Email al cliente confirmando recepción (en su idioma; las plantillas ya tienen es/en/fr/it/pt)
+  const subjects = {
+    es: 'Confirmación de solicitud',
+    en: 'Request confirmation',
+    fr: 'Confirmation de demande',
+    it: 'Conferma della richiesta',
+    pt: 'Confirmação de solicitação',
+  };
   const clientEmailData = {
     email: userEmail,
     userName,
-    subject: `Confirmación de solicitud - ${agentName}`,
+    subject: `${subjects[userLanguage] || subjects.es} - ${agentName}`,
     agentName,
-    formData
+    formData,
+    userLanguage
   };
   
   return await sendConfirmationEmail(clientEmailData);
