@@ -44,7 +44,9 @@ async function findLeadsInWindow(hoursMin, hoursMax) {
       AND quote_sent_at IS NOT NULL
       AND quote_sent_at >= NOW() - INTERVAL '${hoursMax} hours'
       AND quote_sent_at <  NOW() - INTERVAL '${hoursMin} hours'
-      AND (client_name NOT ILIKE '%DEMO%' OR notes NOT ILIKE '%DEMO%')
+      -- Excluir pruebas: DEMO en nombre O en notas (NULL cuenta como vacío)
+      AND COALESCE(client_name, '') NOT ILIKE '%DEMO%'
+      AND COALESCE(notes, '') NOT ILIKE '%DEMO%'
     ORDER BY quote_sent_at ASC
     LIMIT 50
   `, []);
