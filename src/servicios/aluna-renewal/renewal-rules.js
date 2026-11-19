@@ -104,10 +104,13 @@ export function phoneKey(phone) {
  */
 export function pickCurrentMemberships(rows) {
   const byPhone = new Map();
+  const firstByPhone = new Map(); // primer pago verificado de la persona (fecha de afiliación)
   for (const row of rows) {
     const key = phoneKey(row.user_phone);
     const paymentDate = toIsoDate(row.last_payment_date);
     if (!key || !paymentDate) continue;
+    const first = toIsoDate(row.first_payment_date) || paymentDate;
+    if (!firstByPhone.has(key) || first < firstByPhone.get(key)) firstByPhone.set(key, first);
     const prev = byPhone.get(key);
     const newer = !prev
       || paymentDate > prev.paymentDate
@@ -118,9 +121,18 @@ export function pickCurrentMemberships(rows) {
   for (const [key, { row, paymentDate }] of byPhone) {
     const expiry = computeExpiry(paymentDate, row.membership_type);
     if (!expiry) continue;
-    result.push({ ...row, phone_key: key, payment_date: paymentDate, expiry_date: expiry });
+    result.push({ ...row, phone_key: key, payment_date: paymentDate, expiry_date: expiry, affiliated_on: firstByPhone.get(key) });
   }
   return result;
+}
+
+/**
+ * Las automatizaciones de renovación solo aplican a quienes se afiliaron (primer pago
+ * verificado) desde esta fecha. Los clientes anteriores se renuevan por otra vía.
+ */
+export const DEFAULT_RENEWAL_START_DATE = '2026-11-19';
+export function isEligibleByAffiliation(member, startDate = process.env.RENEWAL_START_DATE || DEFAULT_RENEWAL_START_DATE) {
+  return !!member.affiliated_on && member.affiliated_on >= startDate;
 }
 
 export function isExcludedPhone(phone, excludedList = process.env.RENEWAL_EXCLUDED_PHONES || '') {

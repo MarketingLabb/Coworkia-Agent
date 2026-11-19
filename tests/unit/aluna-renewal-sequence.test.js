@@ -96,7 +96,7 @@ async function runDays(repo, fromIso, days, { times = ['09:00', '09:10', '09:20'
       repo.clock.now = now;
       await processRenewalSequence({
         db: {}, now,
-        deps: { repo, pauseMs: 0, excludedPhones: '', sendWhatsApp: async (phone, message) => { sent.push({ phone, message, at: iso, hhmm }); return { status: 'sent' }; } },
+        deps: { repo, pauseMs: 0, excludedPhones: '', startDate: '2000-01-01', sendWhatsApp: async (phone, message) => { sent.push({ phone, message, at: iso, hhmm }); return { status: 'sent' }; } },
       });
     }
   }
@@ -210,7 +210,7 @@ describe('secuencia completa (anti-duplicados)', () => {
     for (const hhmm of ['09:00', '09:10', '09:20']) {
       const now = at('2026-11-10', hhmm);
       repo.clock.now = now;
-      await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', sendWhatsApp: async () => { calls++; return { status: 'unknown', error: 'TIMEOUT' }; } } });
+      await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', startDate: '2000-01-01', sendWhatsApp: async () => { calls++; return { status: 'unknown', error: 'TIMEOUT' }; } } });
     }
     expect(calls).toBe(1);
   });
@@ -221,7 +221,7 @@ describe('secuencia completa (anti-duplicados)', () => {
     for (const hhmm of ['09:00', '09:10', '09:20', '09:30', '09:40']) {
       const now = at('2026-11-10', hhmm);
       repo.clock.now = now;
-      await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', sendWhatsApp: async () => { calls++; return { status: 'failed', error: 'HTTP_400' }; } } });
+      await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', startDate: '2000-01-01', sendWhatsApp: async () => { calls++; return { status: 'failed', error: 'HTTP_400' }; } } });
     }
     expect(calls).toBe(3);
   });
@@ -238,7 +238,7 @@ describe('secuencia completa (anti-duplicados)', () => {
   test('número excluido (interno/pruebas) no recibe nada', async () => {
     const repo = createFakeRepo({ candidates: diegoCandidates() });
     const now = at('2026-11-10', '09:00');
-    const res = await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '0987423072', sendWhatsApp: async () => ({ status: 'sent' }) } });
+    const res = await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '0987423072', startDate: '2000-01-01', sendWhatsApp: async () => ({ status: 'sent' }) } });
     expect(res.sent).toBe(0);
   });
 
@@ -250,8 +250,28 @@ describe('secuencia completa (anti-duplicados)', () => {
 
   test('fuera de horario (antes de 9:00 o después de 19:59) no envía', async () => {
     const repo = createFakeRepo({ candidates: diegoCandidates() });
-    const res = await processRenewalSequence({ db: {}, now: at('2026-11-10', '07:30'), deps: { repo, pauseMs: 0, sendWhatsApp: async () => ({ status: 'sent' }) } });
+    const res = await processRenewalSequence({ db: {}, now: at('2026-11-10', '07:30'), deps: { repo, pauseMs: 0, startDate: '2000-01-01', sendWhatsApp: async () => ({ status: 'sent' }) } });
     expect(res.outsideHours).toBe(true);
+  });
+});
+
+describe('solo clientes afiliados desde la fecha de inicio', () => {
+  test('clientes anteriores al 2026-11-19 no reciben automatizaciones', async () => {
+    const repo = createFakeRepo({ candidates: diegoCandidates() });
+    let calls = 0;
+    const now = at('2026-11-10', '09:00');
+    await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', sendWhatsApp: async () => { calls++; return { status: 'sent' }; } } });
+    expect(calls).toBe(0);
+  });
+
+  test('un cliente afiliado desde el 2026-11-19 sí entra en la secuencia', async () => {
+    const repo = createFakeRepo({ candidates: [
+      { id: 'N1', user_phone: '+593987770788', membership_type: 'Plan 20', client_name: 'Nuevo', last_payment_date: '2026-11-20', first_payment_date: '2026-11-20' },
+    ] });
+    let calls = 0;
+    const now = at('2026-12-17', '09:00'); // vence 2026-12-20 → D-3
+    await processRenewalSequence({ db: {}, now, deps: { repo, pauseMs: 0, excludedPhones: '', sendWhatsApp: async () => { calls++; return { status: 'sent' }; } } });
+    expect(calls).toBe(1);
   });
 });
 
@@ -264,7 +284,7 @@ describe('respuestas del cliente', () => {
 
   test('"renuevo el 25" pospone y ese día le llega el link', async () => {
     const repo = await afterOffer();
-    const res = await handleRenewalReply({ userId: '+593987423072', text: 'Renuevo el 12, ahora no puedo', db: {}, now: at('2026-11-10', '09:05'), deps: { repo } });
+    const res = await handleRenewalReply({ userId: '+593987423072', text: 'Renuevo el 12, ahora no puedo', db: {}, now: at('2026-11-10', '09:05'), deps: { repo, startDate: '2000-01-01' } });
     expect(res.type).toBe('snooze');
     expect(res.reply).toContain('jueves 12 de noviembre');
     repo.inbound.push({ phoneKey: '987423072', at: at('2026-11-10', '09:05') });
@@ -276,7 +296,7 @@ describe('respuestas del cliente', () => {
 
   test('"sí" envía el link al instante y evita el link automático', async () => {
     const repo = await afterOffer();
-    const res = await handleRenewalReply({ userId: '0987423072', text: 'sí', db: {}, now: at('2026-11-10', '09:04'), deps: { repo } });
+    const res = await handleRenewalReply({ userId: '0987423072', text: 'sí', db: {}, now: at('2026-11-10', '09:04'), deps: { repo, startDate: '2000-01-01' } });
     expect(res.type).toBe('renew');
     expect(res.reply).toContain('Payphone');
     repo.inbound.push({ phoneKey: '987423072', at: at('2026-11-10', '09:04') });
@@ -286,7 +306,7 @@ describe('respuestas del cliente', () => {
 
   test('"no me escribas más" detiene todo', async () => {
     const repo = await afterOffer();
-    const res = await handleRenewalReply({ userId: '+593987423072', text: 'no me escribas más por favor', db: {}, now: at('2026-11-10', '11:00'), deps: { repo } });
+    const res = await handleRenewalReply({ userId: '+593987423072', text: 'no me escribas más por favor', db: {}, now: at('2026-11-10', '11:00'), deps: { repo, startDate: '2000-01-01' } });
     expect(res.type).toBe('optout');
     const sent = await runDays(repo, '2026-11-11', 12);
     expect(sent).toHaveLength(0);
@@ -294,7 +314,7 @@ describe('respuestas del cliente', () => {
 
   test('sin aviso de renovación reciente, el mensaje sigue el flujo normal', async () => {
     const repo = createFakeRepo({ candidates: diegoCandidates() });
-    const res = await handleRenewalReply({ userId: '+593987423072', text: 'sí', db: {}, now: at('2026-11-10', '09:05'), deps: { repo } });
+    const res = await handleRenewalReply({ userId: '+593987423072', text: 'sí', db: {}, now: at('2026-11-10', '09:05'), deps: { repo, startDate: '2000-01-01' } });
     expect(res).toBeNull();
   });
 
@@ -303,7 +323,7 @@ describe('respuestas del cliente', () => {
     repo.prefs.set('987423072', { declined_cycle_end: null });
     const sent = await runDays(repo, '2026-11-18', 1, { times: ['09:00'] });
     expect(sent[0].message).toContain('10% de descuento');
-    const res = await handleRenewalReply({ userId: '+593987423072', text: 'sí, lo tomo', db: {}, now: at('2026-11-18', '10:00'), deps: { repo } });
+    const res = await handleRenewalReply({ userId: '+593987423072', text: 'sí, lo tomo', db: {}, now: at('2026-11-18', '10:00'), deps: { repo, startDate: '2000-01-01' } });
     expect(res.reply).toContain('$225');
     expect(repo.leads[0].renewal_discount_pct).toBe(10);
   });

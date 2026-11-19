@@ -16,7 +16,7 @@ import { getPayphoneLink, getBankAccountInfo } from '../payment-calculator.js';
 import {
   STEPS, RECOVERY_DISCOUNT_PCT, RECOVERY_DISCOUNT_MONTHS, RECOVERY_OFFER_VALID_DAYS, REPLY_CONTEXT_DAYS,
   todayEC, hourEC, addDays, diffDays, formatDateEs, firstName, phoneKey,
-  pickCurrentMemberships, isExcludedPhone, decideStep, buildWhatsAppMessage, buildEmailContent,
+  pickCurrentMemberships, isExcludedPhone, isEligibleByAffiliation, decideStep, buildWhatsAppMessage, buildEmailContent,
   classifyRenewalReply, paymentBlock,
 } from './renewal-rules.js';
 
@@ -157,6 +157,7 @@ export async function processRenewalSequence({ db, now = new Date(), deps = {} }
 
   for (const member of members) {
     try {
+      if (!isEligibleByAffiliation(member, deps.startDate)) continue;
       if (isExcludedPhone(member.user_phone, deps.excludedPhones)) continue;
       if (diffDays(member.expiry_date, today) < -3 || diffDays(member.expiry_date, today) > 12) continue;
 
@@ -286,7 +287,7 @@ export async function handleRenewalReply({ userId, text, db, now = new Date(), d
 
   const members = pickCurrentMemberships(await repo.findRenewalCandidates(dbx));
   const member = members.find(m => m.phone_key === key);
-  if (!member) return null;
+  if (!member || !isEligibleByAffiliation(member, deps.startDate)) return null;
   // Si ya pagó un ciclo nuevo, la secuencia vieja no aplica.
   if (member.expiry_date !== latest.cycle_end) return null;
 

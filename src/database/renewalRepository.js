@@ -20,13 +20,16 @@ export async function findRenewalCandidates(db = databaseService) {
     `/* renewal:candidates */
      SELECT ml.id, ml.user_phone, ml.membership_type, ml.client_name, ml.email,
             ml.monthly_fee, ml.status, ml.created_at::text AS lead_created_at,
-            mp.transaction_date::text AS last_payment_date
+            mp.transaction_date::text AS last_payment_date,
+            mp.first_payment_date::text AS first_payment_date
        FROM membership_leads ml
        JOIN (
-         SELECT DISTINCT ON (membership_lead_id) membership_lead_id, transaction_date
+         SELECT membership_lead_id,
+                MAX(transaction_date) AS transaction_date,
+                MIN(transaction_date) AS first_payment_date
            FROM membership_payments
           WHERE status = 'verified'
-          ORDER BY membership_lead_id, transaction_date DESC
+          GROUP BY membership_lead_id
        ) mp ON mp.membership_lead_id = ml.id
       WHERE ml.status IN ('accepted', 'active', 'expired')
         AND mp.transaction_date >= CURRENT_DATE - INTERVAL '420 days'`,
