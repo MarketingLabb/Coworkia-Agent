@@ -1,3 +1,11 @@
+// Fecha de prueba: un lunes futuro (las fechas fijas caducan y rompen los tests).
+const FUTURE_MONDAY = (() => {
+  const d = new Date();
+  d.setUTCHours(12, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 14 + ((8 - d.getUTCDay()) % 7));
+  return d.toISOString().slice(0, 10);
+})();
+
 import { afterAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 const ADMIN = '+593994000001';
@@ -133,7 +141,7 @@ function formWaitingFor(field = 'beneficiaryName') {
     beneficiaryEmail: null,
     email: null,
     spaceType: 'meetingRoom',
-    date: '2026-10-05',
+    date: `${FUTURE_MONDAY}`,
     time: '16:00',
     numPeople: 1,
     durationHours: 2,
@@ -208,7 +216,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
         userId: ADMIN,
         beneficiaryName: name,
         spaceType: 'meetingRoom',
-        date: '2026-10-05',
+        date: `${FUTURE_MONDAY}`,
         time: '16:00',
       });
       expect(sentMessages).toHaveLength(1);
@@ -272,7 +280,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
       userId: '+593991234567',
       reservationFor: 'other',
       userName: 'Francisco Zapata',
-      date: '2026-10-05',
+      date: `${FUTURE_MONDAY}`,
       startTime: '16:00',
     };
 
@@ -295,7 +303,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
     expect(activeForm).toBeNull();
 
     sentMessages.length = 0;
-    await postIncoming('Reserva para mí una sala el 2026-10-05 a las 4pm');
+    await postIncoming(`Reserva para mí una sala el ${FUTURE_MONDAY} a las 4pm`);
 
     expect(activeForm).toMatchObject({
       userId: ADMIN,
@@ -304,7 +312,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
       beneficiaryPhone: ADMIN,
       beneficiaryEmail: 'diego@example.com',
       spaceType: 'meetingRoom',
-      date: '2026-10-05',
+      date: `${FUTURE_MONDAY}`,
       time: '16:00',
     });
     expect(JSON.stringify(activeForm)).not.toContain('Francisco');
@@ -342,7 +350,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
     const data = {
       id: 'normal-client-message',
       fromNumber: clientPhone,
-      body: 'Reserva una sala el 2026-10-05 a las 4pm',
+      body: `Reserva una sala el ${FUTURE_MONDAY} a las 4pm`,
       type: 'text',
       timestamp: Math.floor(Date.now() / 1000),
       fromMe: false,
@@ -358,7 +366,7 @@ describe('Aurora BOSS — recorrido real del webhook', () => {
       reservationFor: null,
       beneficiaryName: null,
       spaceType: 'meetingRoom',
-      date: '2026-10-05',
+      date: `${FUTURE_MONDAY}`,
       time: '16:00',
     });
     expect(sentMessages).toHaveLength(1);

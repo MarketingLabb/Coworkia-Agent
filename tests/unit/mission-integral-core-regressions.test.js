@@ -1,3 +1,11 @@
+// Fecha de prueba: un lunes futuro (las fechas fijas caducan y rompen los tests).
+const FUTURE_MONDAY = (() => {
+  const d = new Date();
+  d.setUTCHours(12, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 14 + ((8 - d.getUTCDay()) % 7));
+  return d.toISOString().slice(0, 10);
+})();
+
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,24 +49,24 @@ describe('A — reserva de Aurora iniciada por ADMIN_PHONE', () => {
   test('pregunta obligatoriamente para quién es y conserva los datos de reserva ya escritos', async () => {
     const result = await processMessageWithForm(
       ADMIN,
-      'Quiero reservar un Hot Desk el 2026-10-05 a las 10am',
+      `Quiero reservar un Hot Desk el ${FUTURE_MONDAY} a las 10am`,
       { userId: ADMIN, name: 'Diego Mauricio Villota Sánchez', email: 'diego@example.com', freeTrialUsed: true }
     );
 
     expect(result.nextQuestion).toBe('¿La reserva es para ti o para otra persona?');
-    expect(result.form).toMatchObject({ spaceType: 'hotDesk', date: '2026-10-05', time: '10:00' });
+    expect(result.form).toMatchObject({ spaceType: 'hotDesk', date: `${FUTURE_MONDAY}`, time: '10:00' });
     expect(result.form.email).toBeNull();
   });
 
   test('reconoce ADMIN_PHONE con formato local y no intercepta usuarios normales', async () => {
     const admin = await processMessageWithForm(
-      '0994000001', 'Quiero reservar el 2026-10-05 a las 10am',
+      '0994000001', `Quiero reservar el ${FUTURE_MONDAY} a las 10am`,
       { userId: '0994000001', freeTrialUsed: true }
     );
     expect(admin.nextQuestion).toBe('¿La reserva es para ti o para otra persona?');
 
     const normal = await processMessageWithForm(
-      '+593992222222', 'Quiero reservar el 2026-10-05 a las 10am',
+      '+593992222222', `Quiero reservar el ${FUTURE_MONDAY} a las 10am`,
       { userId: '+593992222222', email: 'cliente@example.com', freeTrialUsed: true }
     );
     expect(normal.nextQuestion).toContain('¿Qué espacio necesitas');
@@ -67,7 +75,7 @@ describe('A — reserva de Aurora iniciada por ADMIN_PHONE', () => {
 
   test('para sí mismo reutiliza únicamente el perfil válido y pregunta lo faltante', async () => {
     const initial = new PartialReservationForm(ADMIN, {
-      spaceType: 'hotDesk', date: '2026-10-05', time: '10:00', paymentMethod: 'efectivo'
+      spaceType: 'hotDesk', date: `${FUTURE_MONDAY}`, time: '10:00', paymentMethod: 'efectivo'
     }, true);
     const result = await processMessageWithForm(
       ADMIN,
@@ -93,7 +101,7 @@ describe('A — reserva de Aurora iniciada por ADMIN_PHONE', () => {
     ));
     form.updateFields({
       email: form.beneficiaryEmail,
-      spaceType: 'meetingRoom', date: '2026-10-05', time: '10:00', paymentMethod: 'transferencia'
+      spaceType: 'meetingRoom', date: `${FUTURE_MONDAY}`, time: '10:00', paymentMethod: 'transferencia'
     });
     form.freeTrialUsed = true;
 
@@ -109,31 +117,31 @@ describe('A — reserva de Aurora iniciada por ADMIN_PHONE', () => {
 
 describe('B — horario se valida antes del tipo de espacio', () => {
   test('22:00 es inválido para cualquier espacio y las alternativas respetan facts', async () => {
-    expect(validateBusinessHours('2026-10-05', '22:00', '24:00')).toMatchObject({ valid: false });
-    const slots = suggestAlternativeSlots('2026-10-05', '22:00', 2, []);
+    expect(validateBusinessHours(`${FUTURE_MONDAY}`, '22:00', '24:00')).toMatchObject({ valid: false });
+    const slots = suggestAlternativeSlots(`${FUTURE_MONDAY}`, '22:00', 2, []);
     expect(slots.length).toBeGreaterThan(0);
     expect(slots.every(slot => slot.startTime >= HOURS.open24 && slot.endTime <= HOURS.close24)).toBe(true);
 
     const result = await processMessageWithForm(
       '+593991111111',
-      '¿Tienen servicio el 2026-10-05 a las 10pm?',
+      `¿Tienen servicio el ${FUTURE_MONDAY} a las 10pm?`,
       { userId: '+593991111111', freeTrialUsed: true }
     );
     expect(result.nextQuestion).toContain('22:00 está fuera');
     expect(result.nextQuestion).toContain(HOURS.display);
     expect(result.nextQuestion).not.toContain('¿Qué espacio necesitas');
-    expect(result.form.date).toBe('2026-10-05');
+    expect(result.form.date).toBe(`${FUTURE_MONDAY}`);
     expect(result.form.pendingAlternatives).toHaveLength(3);
 
     const restored = PartialReservationForm.fromJSON(result.form.toJSON(), true);
-    expect(restored.date).toBe('2026-10-05');
+    expect(restored.date).toBe(`${FUTURE_MONDAY}`);
     expect(restored.time).toBeNull();
     expect(restored.pendingAlternatives).toEqual(result.form.pendingAlternatives);
   });
 
   test('hora válida con espacio desconocido pregunta el tipo; mensaje incompleto pregunta fecha', async () => {
     const valid = await processMessageWithForm(
-      '+593991111112', 'Quiero reservar el 2026-10-05 a las 10am',
+      '+593991111112', `Quiero reservar el ${FUTURE_MONDAY} a las 10am`,
       { userId: '+593991111112', freeTrialUsed: true }
     );
     expect(valid.nextQuestion).toContain('¿Qué espacio necesitas');
