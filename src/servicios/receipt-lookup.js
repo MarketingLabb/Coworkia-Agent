@@ -1,6 +1,7 @@
 // 🔍 Sistema de Consulta y Reenvío de Recibos - Aurora
 // Aurora puede consultar recibos existentes y reenviarlos por email
 
+import { receiptCopy } from '../utils/receipt-messages.js';
 import db from '../database/postgres-adapter.js';
 import { sendPaymentReceipt } from './payment-receipt-email.js';
 
@@ -210,25 +211,20 @@ async function sendExistingReceipt(receiptData) {
  * @returns {String} Texto formateado con la lista
  */
 export function formatReceiptsList(receipts, language = 'es') {
+  const t = receiptCopy(language);
   if (!receipts || receipts.length === 0) {
-    return language === 'es' 
-      ? 'No encontré recibos de pago en tu historial.'
-      : 'I couldn\'t find any payment receipts in your history.';
+    return t.emptyList;
   }
 
-  const header = language === 'es'
-    ? '📋 *Tus recibos de pago:*\n\n'
-    : '📋 *Your payment receipts:*\n\n';
-
   const receiptsList = receipts.map((receipt, index) => {
-    const date = new Date(receipt.transaction_date).toLocaleDateString('es-EC', {
+    const date = new Date(receipt.transaction_date).toLocaleDateString(t.locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
 
     const typeEmoji = receipt.payment_type === 'membership' ? '🏢' : '🪑';
-    const type = receipt.membership_type || 'Servicio';
+    const type = receipt.membership_type || t.serviceFallback;
 
     return `${index + 1}. ${typeEmoji} *${type}*
    💵 $${parseFloat(receipt.amount).toFixed(2)} USD
@@ -236,9 +232,5 @@ export function formatReceiptsList(receipts, language = 'es') {
    🧾 \`${receipt.receipt_number}\``;
   }).join('\n\n');
 
-  const footer = language === 'es'
-    ? '\n\n💡 Para reenviar un recibo, dime cuál número necesitas.'
-    : '\n\n💡 To resend a receipt, tell me which number you need.';
-
-  return header + receiptsList + footer;
+  return t.header + receiptsList + t.footer;
 }

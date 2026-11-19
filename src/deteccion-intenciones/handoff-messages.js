@@ -149,7 +149,13 @@ export function getEntryMessage(toAgent, fromAgent, userName = '', userLanguage 
   // Si userContext es solo una @mención pura (sin texto adicional), se ignora para evitar saludos ridículos
   const isRealContext = userContext && !/^@\w+\s*$/.test(userContext.trim());
   const contextLine = (fromAgent && fromAgent !== toAgent && isRealContext)
-    ? (lang === 'es' ? `Vi que preguntas por *"${userContext.substring(0, 60)}"* — ` : `I see you asked about *"${userContext.substring(0, 60)}"* — `)
+    ? (({
+        es: (q) => `Vi que preguntas por *"${q}"* — `,
+        en: (q) => `I see you asked about *"${q}"* — `,
+        fr: (q) => `J'ai vu que vous demandez *"${q}"* — `,
+        it: (q) => `Ho visto che chiedi di *"${q}"* — `,
+        pt: (q) => `Vi que você perguntou sobre *"${q}"* — `,
+      })[lang] || ((q) => `Vi que preguntas por *"${q}"* — `))(userContext.substring(0, 60))
     : '';
   const replacements = {
     '{emoji}': info.emoji,

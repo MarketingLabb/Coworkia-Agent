@@ -121,7 +121,14 @@ const RECEIPT_REQUEST_PATTERNS = [
   /invoice/,
   /payment.*receipt/,
   /send.*receipt/,
-  /resend.*receipt/
+  /resend.*receipt/,
+  // fr / it / pt (texto ya sin acentos)
+  /\brecus?\b/,
+  /\bfacture/,
+  /ricevut/,
+  /fattur/,
+  /\bfatura/,
+  /comprovante/
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

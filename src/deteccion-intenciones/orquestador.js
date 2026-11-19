@@ -1,6 +1,7 @@
 // deteccion-intenciones/orquestador.js
 // Aurora Core — Orquestador central del ecosistema Coworkia
 
+import { receiptCopy } from '../utils/receipt-messages.js';
 import { AURORA } from './aurora.js';
 import { ALUNA } from './aluna.js';
 import { ADRIANA } from './adriana.js';
@@ -87,9 +88,10 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
     perfil.preferredLanguage = languageCommand;
     console.log(`[LANGUAGE] 🌍 Idioma cambiado explícitamente: ${languageCommand}`);
   }
-  // Si detecta cambio de idioma con confianza alta, actualizar automáticamente
+  // Si detecta cambio de idioma con evidencia clara, actualizar automáticamente
+  // (strong = varias palabras del otro idioma y clara ventaja sobre el actual)
   else if (languageDetection.language !== perfil.preferredLanguage && 
-           languageDetection.confidence > 0.7) {
+           languageDetection.strong) {
     loggers.orquestador.debug('Cambio de idioma detectado automáticamente', { 
       userId, 
       from: perfil.preferredLanguage, 
@@ -190,9 +192,7 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
       if (receipts.length === 0) {
         // No hay recibos
         const userLanguage = perfil.preferredLanguage || 'es';
-        const noReceiptsMessage = userLanguage === 'es'
-          ? 'No encontré recibos de pago en tu historial. 🤔\n\nSi realizaste un pago recientemente, el recibo fue enviado automáticamente a tu email registrado.\n\n📧 Revisa tu bandeja de entrada y la carpeta de Spam/Promociones.\n\n¿Necesitas ayuda con algo más?'
-          : 'I couldn\'t find any payment receipts in your history. 🤔\n\nIf you made a payment recently, the receipt was automatically sent to your registered email.\n\n📧 Check your inbox and Spam/Promotions folder.\n\nNeed help with something else?';
+        const noReceiptsMessage = receiptCopy(userLanguage).noReceipts;
         
         return {
           respuesta: noReceiptsMessage,
@@ -217,9 +217,7 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
         
         if (resendResult.success) {
           const userLanguage = perfil.preferredLanguage || 'es';
-          const successMessage = userLanguage === 'es'
-            ? `✅ ¡Listo! Te reenvié el recibo \`${receiptNumber}\` a tu email.\n\n📧 Revisa tu bandeja de entrada en unos minutos.\n\n¿Necesitas algo más?`
-            : `✅ Done! I resent receipt \`${receiptNumber}\` to your email.\n\n📧 Check your inbox in a few minutes.\n\nNeed anything else?`;
+          const successMessage = receiptCopy(userLanguage).resent(receiptNumber);
           
           return {
             respuesta: successMessage,
@@ -233,9 +231,7 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
           };
         } else if (resendResult.notFound) {
           const userLanguage = perfil.preferredLanguage || 'es';
-          const notFoundMessage = userLanguage === 'es'
-            ? `⚠️ No encontré el recibo \`${receiptNumber}\` en tu historial.\n\nVerifica el número o dime "mis recibos" para ver todos tus recibos disponibles.`
-            : `⚠️ I couldn't find receipt \`${receiptNumber}\` in your history.\n\nVerify the number or tell me "my receipts" to see all your available receipts.`;
+          const notFoundMessage = receiptCopy(userLanguage).notFound(receiptNumber);
           
           return {
             respuesta: notFoundMessage,
@@ -256,9 +252,7 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
       const userLanguage = perfil.preferredLanguage || 'es';
       const receiptsList = formatReceiptsList(receipts, userLanguage);
       
-      const responseMessage = userLanguage === 'es'
-        ? `${receiptsList}\n\n📧 Los recibos fueron enviados automáticamente a tu email registrado.\n\nSi necesitas que te reenvíe alguno, dime el número de recibo (por ejemplo: \`REC-1234-ABC123\`).`
-        : `${receiptsList}\n\n📧 Receipts were automatically sent to your registered email.\n\nIf you need me to resend one, tell me the receipt number (for example: \`REC-1234-ABC123\`).`;
+      const responseMessage = receiptCopy(userLanguage).listIntro(receiptsList);
       
       return {
         respuesta: responseMessage,
@@ -274,9 +268,7 @@ export async function procesarMensaje(mensaje, perfil = {}, historial = [], form
     } catch (error) {
       console.error('[ORQUESTADOR] ❌ Error manejando solicitud de recibo:', error);
       const userLanguage = perfil.preferredLanguage || 'es';
-      const errorMessage = userLanguage === 'es'
-        ? 'Disculpa, tuve un problema consultando tus recibos. ¿Puedes intentar nuevamente en un momento?'
-        : 'Sorry, I had a problem checking your receipts. Can you try again in a moment?';
+      const errorMessage = receiptCopy(userLanguage).error;
       
       return {
         respuesta: errorMessage,

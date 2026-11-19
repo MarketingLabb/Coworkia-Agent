@@ -4,6 +4,8 @@
  * Soporta: Español, English, Français, Italiano, Português, Runasimi (Quechua)
  */
 
+import { scoreLanguages } from './language-lexicon.js';
+
 // Códigos ISO 639-1 para idiomas soportados
 // Alineado con handoff-messages.js: es, en, fr, it, pt, qu
 export const SUPPORTED_LANGUAGES = {
@@ -26,183 +28,42 @@ export const LANGUAGE_NAMES = {
 };
 
 /**
- * Patrones específicos de cada idioma
- */
-const LANGUAGE_PATTERNS = {
-  // Español - Palabras comunes y acentos
-  es: {
-    commonWords: [
-      'hola', 'buenos', 'días', 'gracias', 'por', 'favor', 'cómo', 'qué', 'cuándo',
-      'dónde', 'quiero', 'necesito', 'tengo', 'estoy', 'puedo', 'soy', 'está',
-      'para', 'con', 'sin', 'pero', 'porque', 'también', 'aquí', 'ahora',
-      'mañana', 'hoy', 'reserva', 'información', 'ayuda', 'precio'
-    ],
-    specialChars: /[áéíóúñü¿¡]/i,
-    questionPattern: /¿.+\?/,
-    weight: 1.0
-  },
-
-  // English - Common words and structure
-  en: {
-    commonWords: [
-      'hello', 'hi', 'good', 'morning', 'thanks', 'please', 'how', 'what', 'when',
-      'where', 'want', 'need', 'have', 'can', 'would', 'like', 'about',
-      'this', 'that', 'with', 'from', 'they', 'there', 'here', 'now',
-      'tomorrow', 'today', 'booking', 'reservation', 'help', 'price', 'information'
-    ],
-    specialChars: /\b(the|a|an|is|are|am|was|were|been|being)\b/i,
-    weight: 1.0
-  },
-
-  // French - Mots communs et structure
-  fr: {
-    commonWords: [
-      'bonjour', 'salut', 'merci', 'sil', 'vous', 'plaît', 'comment', 'quoi', 'quand',
-      'où', 'veux', 'besoin', 'avoir', 'être', 'suis', 'est', 'sont',
-      'pour', 'avec', 'sans', 'mais', 'parce', 'que', 'aussi', 'ici', 'maintenant',
-      'demain', 'aujourd', 'hui', 'réservation', 'information', 'aide', 'prix'
-    ],
-    specialChars: /[àâäéèêëïîôùûüÿœæç]/i,
-    weight: 1.0
-  },
-
-  // Italian - Parole comuni e struttura
-  it: {
-    commonWords: [
-      'ciao', 'buongiorno', 'salve', 'grazie', 'prego', 'come', 'cosa', 'quando',
-      'dove', 'voglio', 'bisogno', 'avere', 'essere', 'sono', 'siamo', 'hanno',
-      'per', 'con', 'senza', 'ma', 'perché', 'anche', 'qui', 'adesso',
-      'domani', 'oggi', 'prenotazione', 'informazione', 'aiuto', 'prezzo'
-    ],
-    specialChars: /[àèéìòù]/i,
-    weight: 1.0
-  },
-
-  // Portuguese - Palavras comuns e estrutura
-  pt: {
-    commonWords: [
-      'olá', 'oi', 'bom', 'dia', 'obrigado', 'obrigada', 'por', 'favor', 'como', 'que', 'quando',
-      'onde', 'quero', 'preciso', 'ter', 'estar', 'sou', 'estou', 'são',
-      'para', 'com', 'sem', 'mas', 'porque', 'também', 'aqui', 'agora',
-      'amanhã', 'hoje', 'reserva', 'informação', 'ajuda', 'preço'
-    ],
-    specialChars: /[ãõáâàéêíóôúç]/i,
-    weight: 1.0
-  },
-
-  // Quechua (Runasimi) - Palabras comunes
-  qu: {
-    commonWords: [
-      'allinllachu', 'imaynalla', 'imanalla', 'ima', 'maypi', 'hayka', 'pi',
-      'munani', 'necesitani', 'yachani', 'kani', 'atini',
-      'kay', 'chay', 'huk', 'kunan', 'paqarin', 'qayna',
-      'yanapay', 'chanin', 'willay', 'tapuy',
-      'yupaichani', 'allinmi', 'napaykullayki', 'rimaykullayki',
-      'sumaq', 'yuyarini', 'wayki', 'panay', 'tayta',
-      'ñuqa', 'qam', 'pay', 'allinta', 'kusikuni',
-      'ari', 'manam', 'qhali', 'kawsay', 'pachapi'
-    ],
-    specialChars: null, // Las commonWords son suficientemente específicas; letras sueltas como h/k/w causan falsos positivos con español
-    weight: 1.0
-  }
-};
-
-/**
- * 🎯 Detecta el idioma de un mensaje
+ * 🎯 Detecta el idioma de un mensaje (por palabras completas, ver language-lexicon.js)
  * @param {string} message - Mensaje a analizar
  * @param {string} preferredLanguage - Idioma preferido del usuario (opcional)
- * @returns {object} { language: 'es', confidence: 0.95, name: 'Español' }
+ * @returns {object} { language, confidence, name, reason, strong, scores }
+ *   strong = la evidencia alcanza para CAMBIAR el idioma de la conversación
  */
 export function detectLanguage(message, preferredLanguage = null) {
   if (!message || typeof message !== 'string') {
-    return {
-      language: SUPPORTED_LANGUAGES.SPANISH,
-      confidence: 1.0,
-      name: LANGUAGE_NAMES.es,
-      reason: 'default'
-    };
+    return { language: SUPPORTED_LANGUAGES.SPANISH, confidence: 1.0, name: LANGUAGE_NAMES.es, reason: 'default', strong: false };
   }
 
   const normalizedMessage = message.toLowerCase().trim();
-  
+
   // Si el mensaje es muy corto (< 3 caracteres), usar idioma preferido
   if (normalizedMessage.length < 3) {
     const lang = preferredLanguage || SUPPORTED_LANGUAGES.SPANISH;
-    return {
-      language: lang,
-      confidence: 0.6,
-      name: LANGUAGE_NAMES[lang],
-      reason: 'short_message_using_preference'
-    };
+    return { language: lang, confidence: 0.6, name: LANGUAGE_NAMES[lang], reason: 'short_message_using_preference', strong: false };
   }
 
-  // Calcular scores para cada idioma
-  const scores = {};
-  
-  for (const [langCode, patterns] of Object.entries(LANGUAGE_PATTERNS)) {
-    let score = 0;
-    let matchCount = 0;
+  const { ranked, scores } = scoreLanguages(normalizedMessage, preferredLanguage);
+  const [topLang, top] = ranked[0];
+  const second = ranked[1][1].score;
 
-    // 1. Verificar palabras comunes
-    for (const word of patterns.commonWords) {
-      if (normalizedMessage.includes(word.toLowerCase())) {
-        score += patterns.weight;
-        matchCount++;
-      }
-    }
-
-    // 2. Verificar caracteres especiales
-    if (patterns.specialChars && patterns.specialChars.test(message)) {
-      score += patterns.weight * 2; // Caracteres especiales son muy indicativos
-      matchCount++;
-    }
-
-    // 3. Bonus si tiene patrón de pregunta (español)
-    if (langCode === 'es' && patterns.questionPattern && patterns.questionPattern.test(message)) {
-      score += patterns.weight;
-      matchCount++;
-    }
-
-    scores[langCode] = {
-      score,
-      matchCount,
-      confidence: matchCount > 0 ? score / (matchCount + 1) : 0
-    };
-  }
-
-  // Encontrar el idioma con mayor score
-  let detectedLang = null;
-  let maxScore = 0;
-  
-  for (const [langCode, data] of Object.entries(scores)) {
-    if (data.score > maxScore) {
-      maxScore = data.score;
-      detectedLang = langCode;
-    }
-  }
-
-  // Si no se detectó nada claro, usar idioma preferido o español por defecto
-  if (!detectedLang || maxScore === 0) {
+  if (top.score === 0) {
     const fallbackLang = preferredLanguage || SUPPORTED_LANGUAGES.SPANISH;
-    return {
-      language: fallbackLang,
-      confidence: 0.5,
-      name: LANGUAGE_NAMES[fallbackLang],
-      reason: 'fallback_to_preference_or_default',
-      scores
-    };
+    return { language: fallbackLang, confidence: 0.5, name: LANGUAGE_NAMES[fallbackLang], reason: 'fallback_to_preference_or_default', strong: false, scores };
   }
 
-  // Calcular confianza normalizada (0-1)
-  const confidence = Math.min(maxScore / 5, 1.0);
+  const margin = top.score - second;
+  // Confianza: cuánta evidencia hay y cuánto le gana al segundo idioma
+  const confidence = Math.round(Math.min(1, top.score / 4) * Math.min(1, 0.4 + margin / Math.max(top.score, 1)) * 100) / 100;
+  // Para CAMBIAR el idioma de la conversación pedimos evidencia clara:
+  // ≥2 palabras/indicios, puntaje ≥3 y ventaja ≥2 sobre el segundo idioma.
+  const strong = top.matchCount >= 2 && top.score >= 3 && margin >= 2;
 
-  return {
-    language: detectedLang,
-    confidence: parseFloat(confidence.toFixed(2)),
-    name: LANGUAGE_NAMES[detectedLang],
-    reason: 'pattern_matching',
-    scores
-  };
+  return { language: topLang, confidence, name: LANGUAGE_NAMES[topLang], reason: 'pattern_matching', strong, matchCount: top.matchCount, scores };
 }
 
 /**
@@ -352,9 +213,10 @@ export function getUserLanguage(message, preferredLanguage = null) {
   // 2. Detectar idioma del mensaje actual
   const detected = detectLanguage(message, preferredLanguage);
 
-  // 2.1 Si detecta idioma distinto al preferido con confianza moderada, permitir cambio
+  // 2.1 Cambiar de idioma solo con evidencia clara (varias palabras del otro idioma).
+  //     Un "thanks" o "ok" suelto no cambia la conversación.
   const isLanguageSwitch = preferredLanguage && detected.language !== preferredLanguage;
-  if (isLanguageSwitch && detected.confidence >= 0.3) {
+  if (isLanguageSwitch && detected.strong) {
     return {
       ...detected,
       confidence: Math.max(detected.confidence, 0.8),
@@ -395,37 +257,32 @@ export function getUserLanguage(message, preferredLanguage = null) {
  */
 export async function translateMessage(message, targetLanguage) {
   try {
-    const { Configuration, OpenAIApi } = await import('openai');
-    
-    const configuration = new Configuration({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-    const openai = new OpenAIApi(configuration);
-    
+    // Antes usaba la API v3 de openai (Configuration/OpenAIApi), que ya no existe
+    // en openai v6: fallaba siempre y reenviaba el mensaje sin traducir.
+    const { complete } = await import('../servicios-ia/openai.js');
+
     const languageNames = {
       es: 'Spanish',
       en: 'English',
       fr: 'French',
       it: 'Italian',
-      pt: 'Portuguese'
+      pt: 'Portuguese',
+      qu: 'Quechua (Runasimi, Southern Quechua)'
     };
-    
+
     const targetName = languageNames[targetLanguage] || 'English';
-    
-    const response = await openai.createChatCompletion({
-      model: 'gpt-4o-mini',
-      messages: [{
-        role: 'system',
-        content: `You are a professional translator. Translate the following message to ${targetName}. Maintain the tone, emojis, and formatting. Only return the translation, nothing else.`
-      }, {
-        role: 'user',
-        content: message
-      }],
+
+    const translated = await complete(message, {
+      system: `You are a professional translator. Translate the following message to ${targetName}. Maintain the tone, emojis, and formatting (including WhatsApp *bold* and line breaks). Keep names, prices, links, codes and phone numbers unchanged. Only return the translation, nothing else.`,
       temperature: 0.3,
-      max_tokens: 500
+      max_tokens: 800
     });
-    
-    return response.data.choices[0].message.content.trim();
+
+    // complete() devuelve un aviso fijo en español si OpenAI no responde: en ese caso, mensaje original
+    if (typeof translated !== 'string' || !translated.trim() || translated.startsWith('Lo siento, estoy experimentando dificultades técnicas')) {
+      return message;
+    }
+    return translated.trim();
   } catch (error) {
     console.error('[TRANSLATE] Error:', error);
     return message; // Si falla, devolver original
