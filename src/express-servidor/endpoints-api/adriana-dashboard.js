@@ -79,12 +79,22 @@ router.patch('/leads/:code/status', async (req, res) => {
   try {
     await databaseService.initialize();
     const { code } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, policyNumber, policyStartDate, policyEndDate } = req.body;
     if (!status) return res.status(400).json({ ok: false, error: 'status requerido' });
 
     let query = `UPDATE insurance_leads SET status = $1, updated_at = CURRENT_TIMESTAMP`;
     const params = [status, code];
-    if (notes) { query += `, notes = $3`; params.push(notes); }
+    if (notes) { params.push(notes); query += `, notes = $${params.length}`; }
+    if (status === 'emitted') {
+      // Vigencia de la póliza (para la renovación de Adriana): por defecto 1 año desde hoy
+      params.push(policyStartDate || null); const pStart = `$${params.length}::date`;
+      params.push(policyEndDate || null);   const pEnd   = `$${params.length}::date`;
+      params.push(policyNumber || null);    const pNum   = `$${params.length}::text`;
+      query += `, emitted_at = COALESCE(emitted_at, CURRENT_TIMESTAMP)`
+             + `, policy_start_date = COALESCE(${pStart}, policy_start_date, CURRENT_DATE)`
+             + `, policy_end_date = COALESCE(${pEnd}, policy_end_date, (COALESCE(${pStart}, policy_start_date, CURRENT_DATE) + INTERVAL '1 year')::date)`
+             + `, policy_number = COALESCE(${pNum}, policy_number)`;
+    }
     query += ` WHERE quote_code = $2`;
 
     await databaseService.run(query, params);

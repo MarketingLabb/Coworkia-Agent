@@ -419,7 +419,12 @@ export async function updateLeadStatus(quoteCode, status, extra = {}) {
 
   if (status === 'quoted')   { sets.push(`quote_sent_at = COALESCE(quote_sent_at, CURRENT_TIMESTAMP)`); }
   if (status === 'accepted') { sets.push(`accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP)`); }
-  if (status === 'emitted')  { sets.push(`emitted_at  = COALESCE(emitted_at,  CURRENT_TIMESTAMP)`); }
+  if (status === 'emitted')  {
+    sets.push(`emitted_at  = COALESCE(emitted_at,  CURRENT_TIMESTAMP)`);
+    // Vigencia por defecto: 1 año desde la emisión (usada por la renovación de pólizas)
+    sets.push(`policy_start_date = COALESCE(policy_start_date, CURRENT_DATE)`);
+    sets.push(`policy_end_date = COALESCE(policy_end_date, (COALESCE(policy_start_date, CURRENT_DATE) + INTERVAL '1 year')::date)`);
+  }
 
   const allowedExtra = ['client_name', 'email', 'phone', 'plate', 'cedula', 'policy_number',
     'kyc_cedula', 'kyc_estado_civil', 'kyc_direccion', 'kyc_ciudad', 'kyc_fecha_nacimiento',
