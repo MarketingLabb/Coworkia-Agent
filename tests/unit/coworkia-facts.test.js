@@ -31,12 +31,12 @@ describe('coworkia-facts.js', () => {
   });
 
   test('mantiene planes y pruebas gratuitas alineados con los criterios vigentes', () => {
-    expect(MEMBERSHIP_PLANS.plan10.price).toBe(140);
-    expect(MEMBERSHIP_PLANS.plan20.price).toBe(250);
-    expect(MEMBERSHIP_PLANS.salareuniones.price).toBe(29);
-    expect(MEMBERSHIP_PLANS.salareuniones.priceDisplay).toBe('$29 USD / sesión');
+    expect(MEMBERSHIP_PLANS.plan10.price).toBe(67);
+    expect(MEMBERSHIP_PLANS.plan20.price).toBe(99);
+    expect(MEMBERSHIP_PLANS.salareuniones.price).toBe(30);
+    expect(MEMBERSHIP_PLANS.salareuniones.priceDisplay).toBe('$30 USD / sesión');
     expect(MEMBERSHIP_PLANS.salareuniones.hours).toContain('2 horas');
-    expect(MEMBERSHIP_PLANS.salareuniones.hours).toContain('3-4 personas');
+    expect(MEMBERSHIP_PLANS.salareuniones.hours).toContain('máximo 4 personas');
 
     expect(FREE_TRIALS.aurora.scope).toContain('Primera visita');
     expect(FREE_TRIALS.aurora.note).toContain(HOURS.display);

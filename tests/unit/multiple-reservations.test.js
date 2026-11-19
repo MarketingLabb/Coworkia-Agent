@@ -21,11 +21,11 @@ describe('🎫 Sistema de Múltiples Reservas', () => {
       expect(price).toBe(10);
     });
 
-    test('Sala de Reuniones = $29 (fijo, sin importar personas)', () => {
-      expect(calculateReservationPrice('meetingRoom', 1, false)).toBe(29);
-      expect(calculateReservationPrice('meetingRoom', 2, false)).toBe(29);
-      expect(calculateReservationPrice('meetingRoom', 3, false)).toBe(29);
-      expect(calculateReservationPrice('meetingRoom', 4, false)).toBe(29);
+    test('Sala de Reuniones = $30 (fijo, sin importar personas)', () => {
+      expect(calculateReservationPrice('meetingRoom', 1, false)).toBe(30);
+      expect(calculateReservationPrice('meetingRoom', 2, false)).toBe(30);
+      expect(calculateReservationPrice('meetingRoom', 3, false)).toBe(30);
+      expect(calculateReservationPrice('meetingRoom', 4, false)).toBe(30);
     });
 
     test('Primera visita gratis = $0', () => {
@@ -91,14 +91,14 @@ describe('🎫 Sistema de Múltiples Reservas', () => {
       // Verificar precios
       expect(ticket).toContain('GRATIS 🎉'); // Primera
       expect(ticket).toContain('$20'); // 2 personas hot desk
-      expect(ticket).toContain('$29'); // Sala
+      expect(ticket).toContain('$30'); // Sala
       
       // Verificar total
-      expect(ticket).toContain('TOTAL A PAGAR: $49');
+      expect(ticket).toContain('TOTAL A PAGAR: $50');
       
       // Verificar opciones de pago (con markdown)
-      expect(ticket).toContain('*$49.00*');
-      expect(ticket).toContain('*$51.45*'); // +5%
+      expect(ticket).toContain('*$50.00*');
+      expect(ticket).toContain('*$52.50*'); // +5%
     });
 
     test('Calcula recargo de 5% para tarjeta correctamente', () => {
@@ -199,11 +199,11 @@ describe('🎫 Sistema de Múltiples Reservas', () => {
 
       const ticket = generateConsolidatedTicket(reservations);
       
-      // GRATIS + $20 + $29 + $10 + $30 = $89
-      expect(ticket).toContain('TOTAL A PAGAR: $89');
+      // GRATIS + $20 + $30 + $10 + $30 = $90
+      expect(ticket).toContain('TOTAL A PAGAR: $90');
       
-      // $89 * 1.05 = $93.45
-      expect(ticket).toContain('*$93.45*');
+      // $90 * 1.05 = $94.50
+      expect(ticket).toContain('*$94.50*');
     });
   });
 
@@ -275,9 +275,9 @@ describe('🧮 Cálculos de Recargo', () => {
 
     const ticket = generateConsolidatedTicket(reservations);
     
-    // $290 * 1.05 = $304.50
-    expect(ticket).toContain('TOTAL A PAGAR: $290');
-    expect(ticket).toContain('$304.50');
+    // $300 * 1.05 = $315.00
+    expect(ticket).toContain('TOTAL A PAGAR: $300');
+    expect(ticket).toContain('$315.00');
   });
 
   test('Redondeo correcto a 2 decimales', () => {

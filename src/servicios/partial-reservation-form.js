@@ -331,7 +331,7 @@ export class PartialReservationForm {
       return Math.round(totalPrice * qty * 100) / 100; // Multiplicar por cantidad de desks
       
     } else if (this.spaceType === 'meetingRoom') {
-      const basePerBlock = 29; // $29 por 2 horas
+      const basePerBlock = 30; // $30 por 2 horas
       const hoursPerBlock = 2;
       const blocks = this.durationHours / hoursPerBlock;
       
@@ -483,7 +483,7 @@ export class PartialReservationForm {
           ? '¿A qué correo te envío la confirmación? 📧'
           : '¿Cuál es el correo electrónico de la persona beneficiaria?';
       case 'spaceType':
-        return `¿Qué espacio necesitas${userName}? Tenemos:\n\n📍 Hot Desk (individual, $10/2h)\n🏢 Sala de Reuniones (3-4 personas, $29/2h)`;
+        return `¿Qué espacio necesitas${userName}? Tenemos:\n\n📍 Hot Desk (individual, $10/2h)\n🏢 Sala de Reuniones (3-4 personas, $30/2h)`;
       
       case 'date':
         return `¿Para qué día${userName}? Puedes decir "hoy", "mañana" o una fecha específica 📅`;
@@ -597,7 +597,7 @@ export class PartialReservationForm {
 
         // Precios base para cada espacio
         const HOTDESK_BASE = 8.70;    // $10 con IVA
-        const SALA_BASE    = 25.22;   // $29 con IVA
+        const SALA_BASE    = 26.09;   // $30 con IVA
 
         const hotdeskTotal  = HOTDESK_BASE * (this.durationHours / 2);
         const salaTotal     = SALA_BASE    * (this.secondDurationHours / 2);
@@ -1448,7 +1448,7 @@ export async function processMessageWithForm(userId, message, userProfile = null
 
 ${hotDeskInfo}
 
-🏢 Sala Reuniones (3-4 personas) - 2h: $29
+🏢 Sala Reuniones (3-4 personas) - 2h: $30
 
 ¿Qué día y hora prefieres? 📅`;
     

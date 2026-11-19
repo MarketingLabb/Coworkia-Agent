@@ -18,7 +18,7 @@ import { ecosistemaTable } from './email-ecosystem.js';
 // ─── Datos de planes ─────────────────────────────────────────────────────────
 const PLAN_DETAILS = {
   'Plan 10': {
-    price: '$140 USD/mes',
+    price: '$67 USD/mes',
     dias: '10 días hábiles + 1 día de cortesía = 11 días',
     horario: 'Lunes a Viernes · 8:30 am → 7:00 pm',
     beneficios: [
@@ -30,7 +30,7 @@ const PLAN_DETAILS = {
     ]
   },
   'Plan 20': {
-    price: '$250 USD/mes',
+    price: '$99 USD/mes',
     dias: '20 días hábiles + 2 días de cortesía = 22 días',
     horario: 'Lunes a Viernes · 8:30 am → 7:00 pm',
     beneficios: [

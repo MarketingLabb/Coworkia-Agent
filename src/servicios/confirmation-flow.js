@@ -1009,7 +1009,7 @@ export async function processNegativeConfirmation(userProfile, message = '') {
       message: `Entiendo${userName}. Si decides continuar con tu reserva, ¿qué espacio necesitas? Tenemos:
 
 📍 Hot Desk
-🏢 Sala de Reuniones (3-4 personas, $29/2h)
+🏢 Sala de Reuniones (3-4 personas, $30/2h)
 
 Déjame saber cómo te gustaría proceder. 😊`,
       needsAction: false,
@@ -1152,7 +1152,7 @@ export async function processConfirmationResponse(message, userProfile) {
             `📋 *Política de espacios Coworkia:*\n` +
             `• Mínimo *2 horas* por reserva\n` +
             `• El precio es el mismo para 1h o 2h\n` +
-            `• Hot Desk: $10/2h · Sala de Reuniones: $29/2h\n\n` +
+            `• Hot Desk: $10/2h · Sala de Reuniones: $30/2h\n\n` +
             (hasDualSpace
               ? `🎁 *Oferta especial:* Reserva Hot Desk + Sala hoy y te doy el *10% de descuento* en el total!\n\n`
               : '') +

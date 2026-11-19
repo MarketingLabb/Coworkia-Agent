@@ -463,7 +463,7 @@ Un cliente respondió a un email de confirmación de reserva. Responde de forma 
 
 SERVICIOS DISPONIBLES:
 - Hot Desk: $10/2h, $5/hora extra (IVA incluido)
-- Sala de Reuniones: $29/2h, $15/hora extra (IVA incluido)  
+- Sala de Reuniones: $30/2h (máx. 4 personas), $15/hora extra (IVA incluido)  
 - Oficina Privada: consultar disponibilidad
 
 DATOS DE ACCESO:

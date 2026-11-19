@@ -1184,7 +1184,7 @@ export function buildAlunaRenewalHTML({ name, plan = 'Membresía', expirationDat
   const safeExpirationDate = escapeHtml(expirationDate);
   const safeMonthlyFee = monthlyFee ? escapeHtml(monthlyFee) : '';
   const fee = monthlyFee ? parseFloat(monthlyFee) : 0;
-  const parkingFee = 25;
+  const parkingFee = 35;
   const totalWithParking = fee ? fee + parkingFee : parkingFee;
   const waText = encodeURIComponent(`¡Hola @aluna!, quiero renovar mi ${plan}`);
   const waParkingText = encodeURIComponent(`¡Hola @aluna!, quiero renovar mi ${plan} con estacionamiento — total $${totalWithParking}/mes`);
@@ -1192,7 +1192,7 @@ export function buildAlunaRenewalHTML({ name, plan = 'Membresía', expirationDat
 
   // Upsale dinámico según plan actual
   const upsaleMap = {
-    'Plan 10':  { next: 'Plan 20', price: '$250/mes', benefit: '22 días completos (20 + 2 gratis)', save: '4 invitados/mes + 4 usos sala reuniones' },
+    'Plan 10':  { next: 'Plan 20', price: '$99/mes', benefit: '22 días completos (20 + 2 gratis)', save: '4 invitados/mes + 4 usos sala reuniones' },
     'Plan 20':  { next: 'Oficina Virtual', price: '$365/año', benefit: 'Dirección comercial oficial + correspondencia', save: 'Equivale a $1/día — cumplimiento SRI incluido' },
   };
   const upsale = upsaleMap[plan] || null;

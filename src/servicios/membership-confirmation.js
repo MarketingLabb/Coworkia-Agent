@@ -25,7 +25,7 @@ function getMembershipDetails(membershipType) {
   const plans = {
     'plan10': {
       name: 'Plan 10',
-      price: '$140 USD/mes',
+      price: '$67 USD/mes',
       days: '10+1 días gratis = 11 días completos',
       hours: 'Día completo por visita',
       benefits: [
@@ -38,7 +38,7 @@ function getMembershipDetails(membershipType) {
     },
     'plan20': {
       name: 'Plan 20',
-      price: '$250 USD/mes',
+      price: '$99 USD/mes',
       days: '20+2 días gratis = 22 días completos',
       hours: 'Día completo por visita',
       benefits: [

@@ -50,14 +50,14 @@ const DIEGO_AUTH_KEYWORDS = [
  */
 const MEMBERSHIP_TYPES = {
   'Plan 10': { 
-    price: 180, 
-    priceWithIVA: 201.60,
+    price: 67,
+    priceWithIVA: 77.05,
     benefits: '11 días/mes todo el día + Sala reuniones 1x/sem (3 pers) + 1 invitado/sem (2h)',
     description: '11 días completos desde apertura hasta cierre'
   },
   'Plan 20': { 
-    price: 250,
-    priceWithIVA: 280,
+    price: 99,
+    priceWithIVA: 113.85,
     benefits: '22 días/mes todo el día + Sala reuniones 2x/sem (4 pers) + 2 invitados/sem (2h)',
     description: '22 días completos desde apertura hasta cierre'
   },

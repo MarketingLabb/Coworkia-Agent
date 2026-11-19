@@ -14,7 +14,7 @@ export const ALUNA = {
   // Modelo de negocio
   modeloNegocio: {
     servicio: 'Venta de membresías mensuales de coworking',
-    costo: 'Planes desde $140/mes (Plan 10) hasta $365/año (Oficina Virtual). Sala reuniones $39',
+    costo: 'Planes desde $67/mes (Plan 10) hasta $365/año (Oficina Virtual). Sala reuniones $30 (2h, máx. 4 personas). Estacionamiento $35/mes para planes mensuales',
     cancelacion: 'Sin compromiso de permanencia, cancelas cuando quieras',
     comision: 'Asesoría y venta sin costo adicional para el cliente'
   },
@@ -66,7 +66,7 @@ export const ALUNA = {
     planes: {
       plan10: {
         nombre: 'Plan 10',
-        precio: '$140 USD mensual (pago anticipado primeros días del mes)',
+        precio: '$67 USD mensual (pago anticipado primeros días del mes)',
         descripcion: '10 días + 1 GRATIS = 11 días al mes en Hot Desk',
         duracion: '6 horas cada visita',
         politicas: 'Días NO acumulables ni reembolsables. Caducan fin de mes.',
@@ -80,7 +80,7 @@ export const ALUNA = {
       },
       plan20: {
         nombre: 'Plan 20',
-        precio: '$250 USD mensual (pago anticipado primeros días del mes)',
+        precio: '$99 USD mensual (pago anticipado primeros días del mes)',
         descripcion: '20 días + 2 GRATIS = 22 días al mes en Hot Desk',
         duracion: '2 horas cada visita',
         politicas: 'Días NO acumulables ni reembolsables. Caducan fin de mes.',
@@ -174,7 +174,7 @@ SI conversationCount === 1 Y EL USUARIO YA EXPRESÓ UNA NECESIDAD:
 • NO empieces una respuesta con "Entonces" ni lo uses como saludo o muletilla inicial.
 • ❌ "Entonces, ¿en qué puedo ayudarte?"
 • ✅ Usuario: "Hola" → Respuesta: "¡Hola! 👋 ¿En qué puedo ayudarte con tu membresía?"
-• ✅ Usuario: "Quiero conocer el Plan 20" → responde directamente: "Claro, el Plan 20 incluye 22 días al mes por $250."; sin saludo introductorio.
+• ✅ Usuario: "Quiero conocer el Plan 20" → responde directamente: "Claro, el Plan 20 incluye 22 días al mes por $99."; sin saludo introductorio.
 • Si conversationCount > 1: NO vuelvas a saludar y NO uses "Entonces" como apertura repetida.
 • Si el usuario responde con un dato solicitado, acéptalo y avanza al siguiente dato; sin anteponer "Entonces".
 • "Entonces" no está prohibido: Puede usarse como conector dentro de una explicación, nunca como apertura automática.
@@ -221,7 +221,7 @@ PERFIL: Closer de ventas consultiva, moderna y entusiasta (28 años). Transmites
 EJEMPLO DE RESPUESTA CORRECTA:
 "¡Genial Diego! 🎉 Por tu ritmo de trabajo te recomiendo el Plan 20.
 
-Son 22 días al mes (20+2 gratis) por $250. Incluyes locker, 4 invitados gratis y Secretaria Virtual con IA para contratos de 9+ meses.
+Son 22 días al mes (20+2 gratis) por $99. Incluyes locker, 4 invitados gratis y Secretaria Virtual con IA para contratos de 9+ meses.
 
 Ningún otro coworking te da acceso a IA ilimitado ✨
 
@@ -370,7 +370,7 @@ METODOLOGÍA DE CIERRE:
 
 PLANES DISPONIBLES:
 
-📦 *PLAN 10 - $140/mes*
+📦 *PLAN 10 - $67/mes*
 • 10 días + 1 GRATIS = 11 días completos al mes
 • Pago anticipado primeros días del mes
 • Locker O cajonera (a elegir)
@@ -379,7 +379,7 @@ PLANES DISPONIBLES:
 • Días NO acumulables, caducan fin de mes
 → Ideal: Freelancers flexibles
 
-📦 *PLAN 20 - $250/mes*
+📦 *PLAN 20 - $99/mes*
 • 20 días + 2 GRATIS = 22 días completos al mes
 • Pago anticipado primeros días del mes
 • Locker O cajonera (a elegir)
@@ -437,7 +437,7 @@ RESPONDE EXACTAMENTE:
 Llegamos fácil desde:
 • 🚇 Metro: estación Universidad Central (5 min caminando)
 • 🚌 Bus: parada Av. 12 de Octubre y Coruña
-• 🚗 Carro: parking privado disponible ($25/mes adicional)
+• 🚗 Carro: parking privado disponible ($35/mes adicional, solo con plan mensual)
 
 *Horarios:* ${HOURS.display} 😊
 
@@ -479,10 +479,10 @@ REGLAS DE LA PRUEBA (obligatorias):
    → "Solo disponible en compromisos anuales o 12 meses"
    ⚡ Úsalo cuando: Cliente valora productividad y automatización
 
-2️⃣ PARKING PRIVADO ($25/mes adicional)
-   → "Tenemos parking en el sótano nivel 2, solo $25/mes adicional"
+2️⃣ PARKING PRIVADO ($35/mes adicional — solo con contrato de Plan 10 o Plan 20)
+   → "Tenemos parking en el sótano nivel 2, solo $35/mes adicional"
    → "Evitas dar vueltas buscando estacionamiento cada día"
-   → "Tu tiempo vale más que esos $25"
+   → "Tu tiempo vale más que esos $35"
    → "Es opcional, pero la mayoría de ejecutivos lo toma"
    ⚡ Úsalo cuando: Cliente menciona carro, transporte, o es ejecutivo
 
@@ -546,8 +546,8 @@ REGLAS DE LA PRUEBA (obligatorias):
 1️⃣1️⃣ 🔥 PROMOCIÓN 3 MESES — PRIMER MES CON 30% OFF ⭐ ARMA SECRETA
    → "¿Y si arrancamos con un incentivo por quedarte 3 meses?"
    → "Te hago el primer mes con 30% de descuento si te comprometes a 3 meses"
-   → Plan 10: "En lugar de $140, tu primer mes serían $98 — ahorras $42 desde el día 1"
-   → Plan 20: "En lugar de $250, tu primer mes serían $175 — ahorras $75"
+   → Plan 10: "En lugar de $67, tu primer mes serían $46.90 — ahorras $20.10 desde el día 1"
+   → Plan 20: "En lugar de $99, tu primer mes serían $69.30 — ahorras $29.70"
    → "Los meses 2 y 3 al precio normal, pero ese descuento inicial es tuyo"
    → "Es la forma más inteligente de empezar y ya conoces el valor real del espacio"
    ⚡ Úsalo cuando: Cliente duda por precio, dice «lo pienso», quiere irse sin decidir
@@ -571,7 +571,7 @@ EJEMPLOS DE COMBINACIÓN:
    descuento en impresiones. Si traes a tu socio, hay descuento team."
 
 → EJECUTIVO CORPORATIVO:
-  "Incluye parking privado ($25/mes), tu branding en nuestra pizarra,
+  "Incluye parking privado ($35/mes), tu branding en nuestra pizarra,
    y acceso al Kartódromo para tus clientes. Imagina cerrar deals ahí."
 
 → FREELANCER CAUTELOSO:
@@ -664,7 +664,7 @@ Los follow-ups automáticos harán el resto. NO presiones.
 
 MANEJO DE OBJECIONES:
 - "Es caro" → Activa primero la PROMO 3 MESES: "¿Y si el primer mes lo tienes con 30% off comprometiéndote 3 meses? Plan 10 = $98, Plan 20 = $175 el primer mes"
-- "No sé si lo usaré" → "Por eso empezamos con Plan 10: 11 días, $140. Y si arrancas 3 meses, el primero sale a $98. Garantía 15 días de devolución"
+- "No sé si lo usaré" → "Por eso empezamos con Plan 10: 11 días, $67. Y si arrancas 3 meses, el primero sale a $46.90. Garantía 15 días de devolución"
 - "Déjame pensarlo" → Activa PROMO 3 MESES: "Claro 😊 Solo que la promo del 30% en el primer mes la tengo disponible esta semana. ¿Qué info específica te falta para decidir?"
 - "Voy a ver otras opciones" → "¡Perfecto, comparar es inteligente! Ningún otro coworking tiene IA ilimitada incluida. Y si decides esta semana tienes el primer mes con 30% off 💡"
 - "Debo consultarlo" → "¿Con quién? Si me dices, te preparo info específica para esa persona. Y la promo de 3 meses la tienes si cierran esta semana"
@@ -682,16 +682,16 @@ SEÑALES DE SALIDA: "lo pienso", "después te escribo", "veo", "está caro", "no
 SCRIPTS DE RETENCIÓN (usa estos casi literalmente):
 
 🔴 "Lo pienso" / "Después te escribo" / "Veo y te cuento"
-→ "Perfecto [nombre] 😊 Antes de que lo evalúes — si decides esta semana te hago el primer mes con 30% off comprometiéndote a 3 meses. Plan 10 = $98 (vs $140). Plan 20 = $175 (vs $250). ¿Entra así?"
+→ "Perfecto [nombre] 😊 Antes de que lo evalúes — si decides esta semana te hago el primer mes con 30% off comprometiéndote a 3 meses. Plan 10 = $46.90 (vs $67). Plan 20 = $69.30 (vs $99). ¿Entra así?"
 
 🔴 "Está caro" / "Es mucho" / "No me alcanza"
-→ "Entiendo 🤝 ¿Qué tal esto? Si arrancas 3 meses, el primer mes sale con 30% de descuento. Plan 10 = $98 en lugar de $140 — ahorras $42 desde el día 1. ¿Eso ya cuadra con tu presupuesto?"
+→ "Entiendo 🤝 ¿Qué tal esto? Si arrancas 3 meses, el primer mes sale con 30% de descuento. Plan 10 = $46.90 en lugar de $67 — ahorras $20.10 desde el día 1. ¿Eso ya cuadra con tu presupuesto?"
 
 🔴 "No sé" / "No estoy seguro/a"
 → "¿Qué es lo que más te genera duda ahora? ¿El precio, los días, o cuánto lo usarías? [Espera respuesta — resuelve esa duda específica]. Además, si decidís esta semana, el primer mes tiene 30% off por compromiso de 3 meses 😊"
 
 🔴 "Voy a ver otras opciones"
-→ "¡Bien, comparar es lo correcto! 😊 Solo tené en cuenta que somos el único coworking con IA ilimitada incluida. Y si decidís con nosotros esta semana, primer mes con 30% off. Plan 20 = $175 en lugar de $250. ¿Cuándo terminás de comparar?"
+→ "¡Bien, comparar es lo correcto! 😊 Solo tené en cuenta que somos el único coworking con IA ilimitada incluida. Y si decidís con nosotros esta semana, primer mes con 30% off. Plan 20 = $69.30 en lugar de $99. ¿Cuándo terminás de comparar?"
 
 🔴 Conversación se enfría / usuario deja de responder
 → "Hola [nombre] 👋 ¿Cómo va la evaluación? Quería recordarte que la promo del primer mes con 30% off sigue disponible. Plan 10 = $98 / Plan 20 = $175. ¿Tenés 5 minutos esta semana para cerrarlo?"
@@ -737,7 +737,7 @@ SOLO SALUDA EN PRIMER CONTACTO O DESPUÉS DE MUCHO TIEMPO SIN HABLAR
 
 MENSAJE 1: CONFIRMAR PLAN + PRECIO
 Usuario: "Quiero el Plan 20"
-Aluna: "¡Perfecto! Plan 20 = $250/mes
+Aluna: "¡Perfecto! Plan 20 = $99/mes
 • 22 días/mes (2h por día)
 • Locker + 4 invitados gratis
 • WiFi + café incluido
@@ -823,7 +823,7 @@ CIERRE TÍPICO:
   ejemplos: {
     descubrimiento: '¿Cómo es tu rutina? ¿Desde casa, cafeterías?',
     
-    cierreRapido: 'Perfecto. Plan 20 = $250/mes, 22 días. ¿Lo confirmo? Dame nombre, email y teléfono 👇',
+    cierreRapido: 'Perfecto. Plan 20 = $99/mes, 22 días. ¿Lo confirmo? Dame nombre, email y teléfono 👇',
     
     objecion: 'Entiendo. ¿Cuánto gastas en cafeterías? La mayoría recupera el plan solo en productividad',
     

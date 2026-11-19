@@ -49,15 +49,24 @@ export const WIFI = Object.freeze({
   display: 'WiFi de alta velocidad incluido',
 });
 
+// ── 🚗 Estacionamiento (upsell de Aluna) ──────────────────────
+// Solo para miembros con contrato de plan mensual (Plan 10 o Plan 20).
+export const PARKING = Object.freeze({
+  price: 35,
+  period: 'mes',
+  priceDisplay: '$35 USD / mes',
+  requires: 'Contrato de plan mensual (Plan 10 o Plan 20)',
+});
+
 // ── 💼 Planes de membresía (Aluna) — TABLA MAESTRA ────────────
 // `price` = número (USD). `priceDisplay` = texto para mostrar.
 export const MEMBERSHIP_PLANS = Object.freeze({
   plan10: Object.freeze({
     key: 'plan10',
     name: 'Plan 10',
-    price: 140,
+    price: 67,
     period: 'mes',
-    priceDisplay: '$140 USD / mes',
+    priceDisplay: '$67 USD / mes',
     days: '10 días + 1 GRATIS = 11 días al mes de Hot Desk',
     hours: 'Jornada completa en cada visita (horario de oficina)',
     ideal: 'Freelancers y profesionales independientes con horario flexible',
@@ -73,9 +82,9 @@ export const MEMBERSHIP_PLANS = Object.freeze({
   plan20: Object.freeze({
     key: 'plan20',
     name: 'Plan 20',
-    price: 250,
+    price: 99,
     period: 'mes',
-    priceDisplay: '$250 USD / mes',
+    priceDisplay: '$99 USD / mes',
     days: '20 días + 2 GRATIS = 22 días al mes de Hot Desk',
     hours: 'Jornada completa en cada visita (horario de oficina)',
     ideal: 'Profesionales con rutina de trabajo regular que necesitan presencia constante',
@@ -108,11 +117,11 @@ export const MEMBERSHIP_PLANS = Object.freeze({
   salareuniones: Object.freeze({
     key: 'salareuniones',
     name: 'Sala de Reuniones',
-    price: 29,
+    price: 30,
     period: 'sesión',
-    priceDisplay: '$29 USD / sesión',
+    priceDisplay: '$30 USD / sesión',
     days: 'Reserva por sesión individual — sin contrato',
-    hours: '2 horas por sesión, capacidad: 3-4 personas',
+    hours: '2 horas por sesión, capacidad: máximo 4 personas',
     ideal: 'Reuniones de trabajo, presentaciones, entrevistas o workshops puntuales',
     benefits: Object.freeze([
       'Pantalla para presentaciones incluida',

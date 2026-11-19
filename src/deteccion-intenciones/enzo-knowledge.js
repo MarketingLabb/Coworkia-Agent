@@ -150,7 +150,7 @@ export const conocimientoEnzo = {
         tipo: 'Pago por uso (transaccional)',
         precios: {
           hotDesk: '$10 por 2 horas (primera visita GRATIS)',
-          salaReuniones: '$29 por 2 horas (3-4 personas)'
+          salaReuniones: '$30 por 2 horas (máximo 4 personas)'
         },
         volumenActual: '50-100 reservas/mes procesadas automáticamente',
         roiCliente: 'Elimina necesidad de recepcionista física = ahorro $600-800/mes'
@@ -214,7 +214,7 @@ ROI: Ahorras 1 recepcionista = $600-800/mes + disponibilidad 24/7
       },
       
       destrezasUnicas: [
-        '🎯 Cierre consultivo: Convierte usuarios gratuitos mostrando ahorro real. Ejemplo: "10 visitas = $100 💸, Plan 10 = $140 por 11 días 📅. Ahorras $60/mes 💰"',
+        '🎯 Cierre consultivo: Convierte usuarios gratuitos mostrando ahorro real. Ejemplo: "10 visitas = $100 💸, Plan 10 = $67 por 11 días 📅. Ahorras $33/mes 💰"',
         '📸 Vision AI para validación de pagos: Lee constancias de pago de membresías mensuales',
         '🛡️ Manejo de objeciones: Respuestas preparadas para "muy caro", "no vengo seguido", "necesito pensarlo". No presiona, educa 📚',
         '⬆️ Upselling estratégico: Basado en comportamiento real del usuario (2-3 visitas/semana → Plan 10)',
@@ -249,27 +249,27 @@ ROI: Ahorras 1 recepcionista = $600-800/mes + disponibilidad 24/7
         {
           titulo: 'Usuario frecuente sin membresía',
           escenario: 'Usuario ha visitado 3 veces pagando $10 cada vez (2 horas por visita) 💳',
-          flujo: `Aluna: "Hola Diego! 👋 Vi que has venido 3 veces este mes pagando $10 por 2 horas ⏰\n\n¿Sabías que con el Plan 10 pagas $140 por 11 días pero con ENTRADA LIBRE TODO EL DÍA? 🎯🔓\n\nEn lugar de 2 horas, puedes estar dentro del horario ${HOURS.display} cuando quieras ☀️🌙\n\nSi sigues viniendo 3 veces/mes pero quedándote todo el día = trabajas 24-30 horas vs 6 horas actuales 📈 ROI: 4x más productividad por solo $40 adicionales 💪"`,
+          flujo: `Aluna: "Hola Diego! 👋 Vi que has venido 3 veces este mes pagando $10 por 2 horas ⏰\n\n¿Sabías que con el Plan 10 pagas $67 por 11 días pero con ENTRADA LIBRE TODO EL DÍA? 🎯🔓\n\nEn lugar de 2 horas, puedes estar dentro del horario ${HOURS.display} cuando quieras ☀️🌙\n\nSi sigues viniendo 3 veces/mes pero quedándote todo el día = trabajas 24-30 horas vs 6 horas actuales 📈 ROI: 4x más productividad por solo $37 adicionales 💪"`,
           resultado: 'Usuario ve el ahorro claro, convierte a Plan 10 ✅'
         },
         {
           titulo: 'Usuario envía comprobante de pago de membresía',
-          escenario: 'Usuario contrata Plan 10 y envía foto de transferencia de $140 📸',
-          flujo: 'Aluna con Vision AI: Lee monto ($140 💵), fecha 📅, referencia #️⃣, valida que coincida con Plan 10, activa membresía automáticamente ⚡, envía contrato digital 📄',
+          escenario: 'Usuario contrata Plan 10 y envía foto de transferencia de $67 📸',
+          flujo: 'Aluna con Vision AI: Lee monto ($67 💵), fecha 📅, referencia #️⃣, valida que coincida con Plan 10, activa membresía automáticamente ⚡, envía contrato digital 📄',
           resultado: 'Activación de membresía en 10 segundos sin intervención humana ⏱️✅'
         },
         {
           titulo: 'Manejo de objeción "muy caro"',
           escenario: 'Usuario: "El Plan 10 me parece caro, prefiero pagar por visita" 💸',
-          flujo: `Aluna: "Te entiendo perfectamente! 😊 Déjame mostrarte la diferencia real:\n\n**VISITA SUELTA:** 🎫\n• $10 por 2 horas ⏰\n• 10 visitas de 2h = $100/mes (20 horas totales) 📊\n\n**PLAN 10:** 🎟️\n• $140/mes por 11 días 📅\n• ENTRADA LIBRE TODO EL DÍA (${HOURS.display}) 🔓☀️\n• Si vienes 1 día completo = 8-9 horas vs 2 horas ⏳\n• Puedes trabajar 80-100 horas/mes vs 20 horas 🚀\n\nLa diferencia no es solo el precio, es FLEXIBILIDAD TOTAL: 💎\n✅ Entras y sales cuando quieras 🚪\n✅ No estás limitado a 2 horas ⏰\n✅ Sin reservas (ya tienes tu día garantizado) 📅\n\n¿Cuánto vale poder trabajar todo el día sin estrés vs estar corriendo contra el reloj de 2 horas? 🤔💡"`,
+          flujo: `Aluna: "Te entiendo perfectamente! 😊 Déjame mostrarte la diferencia real:\n\n**VISITA SUELTA:** 🎫\n• $10 por 2 horas ⏰\n• 10 visitas de 2h = $100/mes (20 horas totales) 📊\n\n**PLAN 10:** 🎟️\n• $67/mes por 11 días 📅\n• ENTRADA LIBRE TODO EL DÍA (${HOURS.display}) 🔓☀️\n• Si vienes 1 día completo = 8-9 horas vs 2 horas ⏳\n• Puedes trabajar 80-100 horas/mes vs 20 horas 🚀\n\nLa diferencia no es solo el precio, es FLEXIBILIDAD TOTAL: 💎\n✅ Entras y sales cuando quieras 🚪\n✅ No estás limitado a 2 horas ⏰\n✅ Sin reservas (ya tienes tu día garantizado) 📅\n\n¿Cuánto vale poder trabajar todo el día sin estrés vs estar corriendo contra el reloj de 2 horas? 🤔💡"`,
           resultado: 'Usuario ve el valor más allá del precio 💯'
         }
       ],
       
       roiDetallado: {
         visitasSueltas: '$10 por 2h = $5/hora 💸',
-        plan10: '$140 por 11 días completos (88-99h potenciales) = $1.41-1.59/hora 💰',
-        ahorroReal: '70% en costo por hora de trabajo 📉✅'
+        plan10: '$67 por 11 días completos (88-99h potenciales) = $0.68-0.76/hora 💰',
+        ahorroReal: '85% en costo por hora de trabajo 📉✅'
       },
       
       aplicableA: [
@@ -285,8 +285,8 @@ ROI: Ahorras 1 recepcionista = $600-800/mes + disponibilidad 24/7
       ejemploVentaEnzo: `Aluna es tu closer de ventas 24/7 que convierte usuarios de visitas sueltas en miembros recurrentes 🎯💼
 
 No vende precio, vende LIBERTAD 🔓:
-• 'Con visita suelta pagas $10 por 2 horas ⏰ Con Plan 10 pagas $140 pero entras TODO EL DÍA cuando quieras 🌞'
-• Maneja objeciones mostrando costo por hora real: $5/h 💸 vs $1.50/h 💰
+• 'Con visita suelta pagas $10 por 2 horas ⏰ Con Plan 10 pagas $67 pero entras TODO EL DÍA cuando quieras 🌞'
+• Maneja objeciones mostrando costo por hora real: $5/h 💸 vs $0.70/h 💰
 • Vision AI valida pagos de membresías automáticamente 📸⚡
 
 Caso real de Coworkia: Convierte 20% de usuarios gratuitos en miembros recurrentes 📊✅

@@ -26,7 +26,7 @@ const PRICING = {
   },
   meetingRoom: {
     baseHours: 2,
-    basePrice: 29.00,
+    basePrice: 30.00,
     additionalHourPrice: 15.00,
     minPeople: 3,
     maxPeople: 4,

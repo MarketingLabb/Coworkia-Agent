@@ -26,7 +26,7 @@ const ACTIVE_CONVERSATION_HOURS = 2;
 const WASSENGER_TIMEOUT_MS = 20000;
 
 // Precios base: misma fuente que valida los comprobantes (membership-payment-verification.js)
-const BASE_PRICES = { 'Plan 10': 180, 'Plan 20': 250, 'Oficina Virtual': 365 };
+const BASE_PRICES = { 'Plan 10': 67, 'Plan 20': 99, 'Oficina Virtual': 365 };
 
 export function renewalAmount(membershipType, discountPct = 0) {
   const base = BASE_PRICES[membershipType];

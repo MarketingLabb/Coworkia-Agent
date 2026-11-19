@@ -271,7 +271,7 @@ export const FORM_SCHEMAS = {
       companyName: '🏢 Empresa'
     },
     questions: {
-      membershipType: '¿Qué plan te interesa? (Plan 10 [$140], Plan 20 [$250], Oficina Virtual [$365/año], Sala Reuniones [$39])',
+      membershipType: '¿Qué plan te interesa? (Plan 10 [$67], Plan 20 [$99], Oficina Virtual [$365/año], Sala Reuniones [$30])',
       fullName: '¡Genial! 🎉 Para preparar tu membresía, ¿cuál es tu nombre completo? 👤',
       email: 'Perfecto. ¿A qué email te envío la proforma con todos los detalles? 📧',
       phone: 'Y si quieres que te contactemos también por llamada, ¿cuál es tu número? 📱 (opcional)'

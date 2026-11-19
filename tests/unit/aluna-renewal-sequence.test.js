@@ -176,9 +176,9 @@ describe('reglas de renovación', () => {
   });
 
   test('montos con descuento de recuperación', () => {
-    expect(renewalAmount('Plan 20')).toBe(250);
-    expect(renewalAmount('Plan 20', 10)).toBe(225);
-    expect(renewalAmount('Plan 10', 10)).toBe(162);
+    expect(renewalAmount('Plan 20')).toBe(99);
+    expect(renewalAmount('Plan 20', 10)).toBe(89.1);
+    expect(renewalAmount('Plan 10', 10)).toBe(60.3);
   });
 
   test('todayEC usa hora de Ecuador', () => {
@@ -198,7 +198,7 @@ describe('secuencia completa (anti-duplicados)', () => {
     expect(sent[0]).toMatchObject({ at: '2026-11-10', hhmm: '09:00' });
     expect(sent[1]).toMatchObject({ at: '2026-11-10', hhmm: '09:10' });
     expect(sent[1].message).toContain('Payphone');
-    expect(sent[1].message).toContain('$250');
+    expect(sent[1].message).toContain('$99');
     // se creó un lead pendiente de pago para que el comprobante se valide solo
     expect(repo.leads.filter(l => l.status === 'pending_payment')).toHaveLength(1);
     expect(sent[4].message).toContain('10% de descuento durante 3 meses');
@@ -324,7 +324,7 @@ describe('respuestas del cliente', () => {
     const sent = await runDays(repo, '2026-11-18', 1, { times: ['09:00'] });
     expect(sent[0].message).toContain('10% de descuento');
     const res = await handleRenewalReply({ userId: '+593987423072', text: 'sí, lo tomo', db: {}, now: at('2026-11-18', '10:00'), deps: { repo, startDate: '2000-01-01' } });
-    expect(res.reply).toContain('$225');
+    expect(res.reply).toContain('$89.10');
     expect(repo.leads[0].renewal_discount_pct).toBe(10);
   });
 });

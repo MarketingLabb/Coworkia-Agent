@@ -176,7 +176,7 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
       success: true,
       data: {
         transactionNumber: 'W70615789',
-        amount: 250.00,
+        amount: 99.00,
         currency: 'USD',
         transactionDate: recentDate,
         transactionTime: '14:15:00',
@@ -210,7 +210,7 @@ describe('💼 ALUNA VISION AI - CONSTANCIAS DE PAGO MEMBRESÍAS', () => {
     
     expect(result.success).toBe(true);
     expect(result.autoApproved).toBe(true);
-    expect(result.message).toContain('$250');
+    expect(result.message).toContain('$99');
     expect(result.message).toContain('Plan 20');
   });
 

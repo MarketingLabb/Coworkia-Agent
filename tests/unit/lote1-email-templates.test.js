@@ -47,7 +47,7 @@ describe('Lote 1 email templates y datos canónicos', () => {
   test('PLAN_DATA de proformas se deriva de MEMBERSHIP_PLANS', () => {
     expect(PLAN_DATA.plan20.price).toBe(MEMBERSHIP_PLANS.plan20.priceDisplay);
     expect(PLAN_DATA.plan20.benefits).toBe(MEMBERSHIP_PLANS.plan20.benefits);
-    expect(PLAN_DATA.salareuniones.price).toBe('$29 USD / sesión');
+    expect(PLAN_DATA.salareuniones.price).toBe('$30 USD / sesión');
     expect(normalizePlanKey('SALA DE REUNIÓN')).toBe('salareuniones');
     expect(normalizePlanKey(undefined)).toBe('plan10');
   });
@@ -95,7 +95,7 @@ describe('Lote 1 email templates y datos canónicos', () => {
       coworkiaWhatsApp: CONTACT.phoneWhatsApp,
     });
 
-    expect(html).toContain('$29 USD / sesión');
+    expect(html).toContain('$30 USD / sesión');
     expect(html).toContain(LOCATION.addressFull);
     expect(html).toContain(LOCATION.mapsUrl);
     expect(html).toContain(CONTACT.email);
@@ -133,7 +133,7 @@ describe('Lote 1 email templates y datos canónicos', () => {
     const proforma = generateAlunaProformaHTML({
       clientName: '<script>alert(1)</script>',
       planName: '<b>Sala</b>',
-      planPrice: '$29 USD / sesión',
+      planPrice: '$30 USD / sesión',
       planDays: 'Reserva',
       planHours: '2 horas',
       planBenefits: ['<img src=x onerror=alert(1)>'],

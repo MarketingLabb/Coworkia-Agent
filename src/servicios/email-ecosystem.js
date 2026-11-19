@@ -92,7 +92,7 @@ const AGENTS = {
   aluna: {
     tag: 'MEMBRESÍAS',
     name: 'Aluna — Coworkia',
-    pitch: 'Tu oficina en Quito desde $140/mes. Flexible, sin permanencia forzada.',
+    pitch: 'Tu oficina en Quito desde $67/mes. Flexible, sin permanencia forzada.',
     cta: 'Activar mi membresía →',
     link: 'https://wa.me/593994837117?text=%40aluna%20quiero%20conocer%20las%20membres%C3%ADas%20en%20Coworkia',
   },

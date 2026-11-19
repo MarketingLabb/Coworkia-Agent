@@ -18,7 +18,7 @@ export const AURORA = {
   // Modelo de negocio
   modeloNegocio: {
     servicio: 'Reservas de espacios de coworking',
-    costo: 'Pago por uso (hotDesk $10/2h, salas $29-$69/2h)',
+    costo: 'Pago por uso (hotDesk $10/2h, sala de reuniones $30/2h)',
     primeraVisita: 'GRATIS (si no ha usado prueba antes)',
     notaImportante: 'Servicio de asesoría y coordinación gratuito'
   },
@@ -78,7 +78,7 @@ export const AURORA = {
 • WiFi + café ☕`
         },
         salaReuniones: `🏢 Sala de Reuniones (Privada para 3-4 personas)
-• 2 horas: $29
+• 2 horas: $30
 • Pizarra + TV + WiFi + café ☕`,
         ubicacion: `📍 Whymper 403, Edificio Finistere, Quito
 ⏰ ${AURORA_HOURS_ES}
@@ -102,7 +102,7 @@ export const AURORA = {
 • WiFi + coffee ☕`
         },
         salaReuniones: `🏢 Meeting Room (Private for 3-4 people)
-• 2 hours: $29
+• 2 hours: $30
 • Whiteboard + TV + WiFi + coffee ☕`,
         ubicacion: `📍 Whymper 403, Finistere Building, Quito
 ⏰ ${AURORA_HOURS_EN}
@@ -126,7 +126,7 @@ export const AURORA = {
 • WiFi + café ☕`
         },
         salaReuniones: `🏢 Salle de Réunion (Privée pour 3-4 personnes)
-• 2 heures: $29
+• 2 heures: $30
 • Tableau blanc + TV + WiFi + café ☕`,
         ubicacion: `📍 Whymper 403, Édifice Finistere, Quito
 ⏰ ${AURORA_HOURS_FR}
@@ -156,7 +156,7 @@ export const AURORA = {
 • WiFi + café ☕`
     },
     salaReuniones: `🏢 Sala de Reuniones (Privada para 3-4 personas)
-• 2 horas: $29
+• 2 horas: $30
 • Pizarra + TV + WiFi + café ☕`,
     ubicacion: `📍 Whymper 403, Edificio Finistere, Quito
 ⏰ ${AURORA_HOURS_ES}
@@ -422,7 +422,7 @@ Coordinamos espacios de coworking + red de especialistas en múltiples áreas:
 
 🏢 ESPACIOS DE TRABAJO:
 • Hot Desk: $10/2h ${freeTrialUsed ? '' : `(${FREE_TRIALS.aurora.label} 🎁 ${AURORA_HOURS_ES})`}
-• Sala Reuniones: $29/2h (3-4 personas)
+• Sala Reuniones: $30/2h (3-4 personas)
 
 👥 ESPECIALISTAS DISPONIBLES:
 ${this.serviciosInfo.especialistas}

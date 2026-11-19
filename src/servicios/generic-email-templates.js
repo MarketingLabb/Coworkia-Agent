@@ -1468,7 +1468,7 @@ export function generateAlunaProformaHTML(data, userLanguage = 'es') {
   const is20 = planName?.includes('Plan 20');
   const comboDiscount = is20 ? '15%' : '10%';
   // Precios mensuales con descuento aplicado (contrato anual)
-  const planMonthlyBase  = is20 ? 250 : 140;
+  const planMonthlyBase  = is20 ? 99 : 67;
   const discountRate     = is20 ? 0.15 : 0.10;
   const planMonthlyNet   = Math.round(planMonthlyBase * (1 - discountRate));
   const ovMonthlyNet     = Math.round(365 * (1 - discountRate) / 12);

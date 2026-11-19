@@ -819,7 +819,7 @@ function calculateServicePrice(serviceType, durationHours, guestCount, userProfi
   
   // SALA DE REUNIÓN - NUNCA GRATIS, SIEMPRE PAGADA
   if (serviceType === 'meetingRoom') {
-    // $29 por sala (primeras 2h), luego $15 por hora adicional
+    // $30 por sala (primeras 2h), luego $15 por hora adicional
     const totalPeople = 1 + guestCount;
     
     // Validar capacidad (3-4 personas)
@@ -834,10 +834,10 @@ function calculateServicePrice(serviceType, durationHours, guestCount, userProfi
     
     let totalPrice = 0;
     if (durationHours <= 2) {
-      totalPrice = 29.0;
+      totalPrice = 30.0;
     } else {
       const additionalHours = durationHours - 2;
-      totalPrice = 29.0 + (additionalHours * 15.0);
+      totalPrice = 30.0 + (additionalHours * 15.0);
     }
     
     console.log(`[PRICING] 🏢 Sala de Reunión: ${totalPeople} personas × ${durationHours}h = $${totalPrice}`);

@@ -44,25 +44,25 @@ describe('💰 Cálculo de Precios', () => {
   });
 
   describe('Sala de Reuniones - Precios', () => {
-    test('2 horas para 3 personas debe costar $29', () => {
+    test('2 horas para 3 personas debe costar $30', () => {
       const result = calculateReservationCost('meetingRoom', 2, 3);
-      expect(parseFloat(result.basePrice)).toBe(29);
+      expect(parseFloat(result.basePrice)).toBe(30);
       expect(result.service).toBe('Sala de Reuniones');
     });
 
-    test('2 horas para 4 personas debe costar $29', () => {
+    test('2 horas para 4 personas debe costar $30', () => {
       const result = calculateReservationCost('meetingRoom', 2, 4);
-      expect(parseFloat(result.basePrice)).toBe(29);
+      expect(parseFloat(result.basePrice)).toBe(30);
     });
 
-    test('3 horas para 3 personas debe costar $44 ($29 + $15)', () => {
+    test('3 horas para 3 personas debe costar $45 ($30 + $15)', () => {
       const result = calculateReservationCost('meetingRoom', 3, 3);
-      expect(parseFloat(result.basePrice)).toBe(44);
+      expect(parseFloat(result.basePrice)).toBe(45);
     });
 
-    test('4 horas para 4 personas debe costar $59 ($29 + $30)', () => {
+    test('4 horas para 4 personas debe costar $60 ($30 + $30)', () => {
       const result = calculateReservationCost('meetingRoom', 4, 4);
-      expect(parseFloat(result.basePrice)).toBe(59);
+      expect(parseFloat(result.basePrice)).toBe(60);
     });
   });
 

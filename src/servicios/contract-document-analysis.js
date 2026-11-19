@@ -78,7 +78,7 @@ export function buildContractPrompt(documentType, userContext = '') {
 Este es un contrato de membresía o afiliación. Realiza un análisis profesional siguiendo esta estructura:
 
 1. **Información del Contrato**
-   - Tipo de membresía (Plan 10 [$140], Plan 20 [$250], Oficina Virtual [$365/año], Sala Reuniones [$39], u otro)
+   - Tipo de membresía (Plan 10 [$67], Plan 20 [$99], Oficina Virtual [$365/año], Sala Reuniones [$30], u otro)
    - Duración del contrato (mensual, trimestral, anual)
    - Precio/inversión acordada
    - Fecha de inicio y vigencia

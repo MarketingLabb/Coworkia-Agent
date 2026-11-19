@@ -75,8 +75,8 @@ const PRICING = {
     incluye: 'WiFi + café ☕'
   },
   salaReuniones: {
-    base: 29.00,
-    conTarjeta: 35.03, // +20.8% fee procesamiento Payphone  
+    base: 30.00,
+    conTarjeta: 36.24, // +20.8% fee procesamiento Payphone  
     descripcion: 'Sala Reuniones — 2 horas',
     incluye: 'Pizarra + TV + WiFi + café ☕'
   },

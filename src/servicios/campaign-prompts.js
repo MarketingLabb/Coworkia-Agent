@@ -16,7 +16,7 @@ export const CAMPAIGN_PROMPTS = {
 ¿Qué prefieres?
 
 📍 Hot Desk (2 horas gratis en tu primera visita 🎁)
-🏢 Sala de Reuniones (3-4 personas, $29 por 2h)
+🏢 Sala de Reuniones (3-4 personas, $30 por 2h)
 
 Dime cuál te interesa y agendamos 😊`,
       en: `Hello {nombre}! 👋🏼 I'm Aurora, let me coordinate your space right away.
@@ -24,7 +24,7 @@ Dime cuál te interesa y agendamos 😊`,
 What do you prefer?
 
 📍 Hot Desk (2 free hours on your first visit 🎁)
-🏢 Meeting Room (3-4 people, $29 for 2h)
+🏢 Meeting Room (3-4 people, $30 for 2h)
 
 Tell me which one interests you and we'll schedule it 😊`,
       fr: `Bonjour {nombre}! 👋🏼 Je suis Aurora, je coordonne votre espace immédiatement.
@@ -32,7 +32,7 @@ Tell me which one interests you and we'll schedule it 😊`,
 Que préférez-vous?
 
 📍 Hot Desk (2 heures gratuites lors de votre première visite 🎁)
-🏢 Salle de Réunion (3-4 personnes, $29 pour 2h)
+🏢 Salle de Réunion (3-4 personnes, $30 pour 2h)
 
 Dites-moi ce qui vous intéresse et nous planifierons 😊`
     })
@@ -295,7 +295,7 @@ Qué bueno verte de nuevo. Veo que el *${fecha}* a las *${hora}* disfrutaste tu 
 📋 *Para tu próxima visita:*
 
 📍 *Hot Desk* → $10 por 2 horas
-🏢 *Sala de Reuniones* → $29 por 2 horas (3-4 personas)
+🏢 *Sala de Reuniones* → $30 por 2 horas (3-4 personas)
 
 ¿Cuál prefieres? te agendo de inmediato 😊`;
 }
@@ -354,10 +354,10 @@ Cuando hayas pagado, envíame la captura del comprobante 📸 y te agendo de inm
   if (meetingRoomPatterns.some(p => msgLower.includes(p))) {
     return {
       serviceType: 'meetingRoom',
-      price: 29,
+      price: 30,
       message: `¡Perfecto! 😊
 
-🏢 *Sala de Reuniones* (2 horas, 3-4 personas) = *$29*
+🏢 *Sala de Reuniones* (2 horas, 3-4 personas) = *$30*
 
 💳 *Paga aquí:*
 https://ppls.me/hnMI9yMRxbQ6rgIVi6L2DA
@@ -410,8 +410,8 @@ export function generateConsolidatedTicket(reservations) {
         precio = `$${hotDeskPrice}`;
         total += hotDeskPrice;
       } else if (espacio === 'Sala de Reuniones') {
-        precio = '$29';
-        total += 29;
+        precio = '$30';
+        total += 30;
       } else {
         precio = res.price ? `$${res.price}` : 'Precio pendiente';
         if (res.price) total += res.price;
@@ -450,7 +450,7 @@ export function calculateReservationPrice(serviceType, numPeople = 1, wasFree = 
     // Hot Desk es INDIVIDUAL - solo 1 persona, precio fijo $10
     return 10;
   } else if (serviceType === 'meetingRoom') {
-    return 29; // $29 fijo por sala
+    return 30; // $30 fijo por sala
   }
   
   return 0;
